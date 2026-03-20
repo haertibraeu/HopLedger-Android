@@ -12,13 +12,12 @@ import javax.inject.Inject
 
 data class AccountingUiState(
     val balances: List<Balance> = emptyList(),
-    val entries: List<AccountEntry> = emptyList(),
     val settlements: List<Settlement> = emptyList(),
+    val entries: List<AccountEntry> = emptyList(),
     val brewers: List<Brewer> = emptyList(),
     val selectedBrewerId: String? = null,
     val isLoading: Boolean = false,
     val error: String? = null,
-    val showSettlements: Boolean = false,
     val showManualEntryDialog: Boolean = false,
 )
 
@@ -40,13 +39,14 @@ class AccountingViewModel @Inject constructor(
             try {
                 val balances = api.getBalances()
                 val brewers = api.getBrewers()
+                val settlements = api.getSettlements()
                 val entriesResponse = if (_uiState.value.selectedBrewerId != null) {
                     api.getEntries(brewerId = _uiState.value.selectedBrewerId)
                 } else {
                     api.getEntries()
                 }
                 val entries = entriesResponse.entries
-                _uiState.update { it.copy(balances = balances, brewers = brewers, entries = entries, isLoading = false, error = null) }
+                _uiState.update { it.copy(balances = balances, brewers = brewers, settlements = settlements, entries = entries, isLoading = false, error = null) }
                 sync.endSync()
             } catch (e: Exception) {
                 _uiState.update { it.copy(isLoading = false, error = e.message) }
@@ -60,18 +60,6 @@ class AccountingViewModel @Inject constructor(
         refresh()
     }
 
-    fun calculateSettlements() {
-        viewModelScope.launch {
-            try {
-                val settlements = api.getSettlements()
-                _uiState.update { it.copy(settlements = settlements, showSettlements = true) }
-            } catch (e: Exception) {
-                _uiState.update { it.copy(error = e.message) }
-            }
-        }
-    }
-
-    fun dismissSettlements() { _uiState.update { it.copy(showSettlements = false) } }
     fun showManualEntryDialog() { _uiState.update { it.copy(showManualEntryDialog = true) } }
     fun dismissManualEntryDialog() { _uiState.update { it.copy(showManualEntryDialog = false) } }
 
