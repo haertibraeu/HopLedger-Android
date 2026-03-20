@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">HopLedger</string>
+    <string name="tab_inventory">Inventar</string>
+    <string name="tab_accounting">Buchhaltung</string>
+    <string name="tab_settings">Einstellungen</string>
+</resources>
