@@ -224,9 +224,17 @@ private fun FilterDropdownChip(
 @Composable
 private fun ContainerGroupCard(group: ContainerGroup, onClick: () -> Unit) {
     val isReserved = group.reservedFor != null
+    val isEmpty = group.beer == null
+
+    val cardColor = when {
+        isReserved -> MaterialTheme.colorScheme.secondaryContainer          // reserved: warm tint
+        isEmpty    -> MaterialTheme.colorScheme.surfaceVariant              // empty: muted neutral
+        else       -> MaterialTheme.colorScheme.primaryContainer            // full: primary tint
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        colors = if (isReserved) CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer) else CardDefaults.cardColors(),
+        colors = CardDefaults.cardColors(containerColor = cardColor),
     ) {
         Column(modifier = Modifier.padding(10.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
