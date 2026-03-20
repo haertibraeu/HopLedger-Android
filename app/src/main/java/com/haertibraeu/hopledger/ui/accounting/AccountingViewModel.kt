@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.haertibraeu.hopledger.data.api.HopLedgerApi
 import com.haertibraeu.hopledger.data.model.*
+import com.haertibraeu.hopledger.data.repository.SyncRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -24,6 +25,7 @@ data class AccountingUiState(
 @HiltViewModel
 class AccountingViewModel @Inject constructor(
     private val api: HopLedgerApi,
+    private val sync: SyncRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(AccountingUiState())
@@ -34,6 +36,7 @@ class AccountingViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
+            sync.startSync()
             try {
                 val balances = api.getBalances()
                 val brewers = api.getBrewers()
@@ -44,8 +47,10 @@ class AccountingViewModel @Inject constructor(
                 }
                 val entries = entriesResponse.entries
                 _uiState.update { it.copy(balances = balances, brewers = brewers, entries = entries, isLoading = false, error = null) }
+                sync.endSync()
             } catch (e: Exception) {
                 _uiState.update { it.copy(isLoading = false, error = e.message) }
+                sync.endSync(e.message)
             }
         }
     }

@@ -157,7 +157,11 @@ private fun DropdownFilter(label: String, modifier: Modifier = Modifier, content
 
 @Composable
 private fun ContainerGroupCard(group: ContainerGroup, onClick: () -> Unit) {
-    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+    val isReserved = group.reservedFor != null
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        colors = if (isReserved) CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer) else CardDefaults.cardColors(),
+    ) {
         Column(modifier = Modifier.padding(10.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
                 Text(group.containerType?.name ?: "?", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
@@ -166,7 +170,7 @@ private fun ContainerGroupCard(group: ContainerGroup, onClick: () -> Unit) {
             Spacer(Modifier.height(4.dp))
             Text(if (group.beer == null) "🫙 Leer" else "🍺 ${group.beer.name}", style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text("📍 ${group.location?.name ?: "?"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (group.reservedCount > 0) Text("📋 ${group.reservedCount} res.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
+            if (isReserved) Text("📋 ${group.reservedFor}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
 }

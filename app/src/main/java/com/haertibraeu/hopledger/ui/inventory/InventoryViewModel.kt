@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.haertibraeu.hopledger.data.api.HopLedgerApi
 import com.haertibraeu.hopledger.data.model.*
+import com.haertibraeu.hopledger.data.repository.SyncRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -15,11 +16,11 @@ data class ContainerGroup(
     val containerTypeId: String,
     val beerId: String?,
     val locationId: String,
+    val reservedFor: String?,
     val containerType: ContainerType?,
     val beer: Beer?,
     val location: Location?,
     val count: Int,
-    val reservedCount: Int,
     val sampleContainer: Container,
 )
 
@@ -42,6 +43,7 @@ data class InventoryUiState(
 @HiltViewModel
 class InventoryViewModel @Inject constructor(
     private val api: HopLedgerApi,
+    private val sync: SyncRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(InventoryUiState())
@@ -52,6 +54,7 @@ class InventoryViewModel @Inject constructor(
     fun refresh() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
+            sync.startSync()
             try {
                 val s = _uiState.value
                 val isEmpty = when (s.statusFilter) {
@@ -81,30 +84,33 @@ class InventoryViewModel @Inject constructor(
                         error = null,
                     )
                 }
+                sync.endSync()
             } catch (e: Exception) {
                 _uiState.update { it.copy(isLoading = false, error = e.message) }
+                sync.endSync(e.message)
             }
         }
     }
 
+    // Group by type + beer + location + who reserved (each unique reservation is its own card)
     private fun groupContainers(containers: List<Container>): List<ContainerGroup> =
         containers
-            .groupBy { Triple(it.containerTypeId, it.beerId, it.locationId) }
-            .map { (_, group) ->
+            .groupBy { Pair(Triple(it.containerTypeId, it.beerId, it.locationId), it.reservedFor) }
+            .map { (key, group) ->
                 val s = group.first()
                 ContainerGroup(
                     containerTypeId = s.containerTypeId,
                     beerId = s.beerId,
                     locationId = s.locationId,
+                    reservedFor = s.reservedFor,
                     containerType = s.containerType,
                     beer = s.beer,
                     location = s.location,
                     count = group.size,
-                    reservedCount = group.count { it.isReserved },
                     sampleContainer = s,
                 )
             }
-            .sortedWith(compareBy({ it.containerType?.name }, { it.beer?.name }))
+            .sortedWith(compareBy({ it.containerType?.name }, { it.beer?.name }, { it.reservedFor }))
 
     fun setStatusFilter(f: StatusFilter) { _uiState.update { it.copy(statusFilter = f) }; refresh() }
     fun setLocationFilter(id: String?) { _uiState.update { it.copy(filterLocationId = id) }; refresh() }
@@ -119,85 +125,37 @@ class InventoryViewModel @Inject constructor(
 
     fun addContainer(containerTypeId: String, locationId: String, beerId: String?, count: Int = 1) {
         viewModelScope.launch {
+            sync.startSync()
             try {
                 repeat(count.coerceIn(1, 50)) {
                     api.createContainer(ContainerCreateRequest(containerTypeId, locationId, beerId))
                 }
                 dismissAddDialog()
+                sync.endSync()
                 refresh()
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = e.message) }
+                sync.endSync(e.message)
             }
         }
     }
 
-    fun deleteContainer(id: String) {
+    private fun containerAction(action: suspend () -> Unit) {
         viewModelScope.launch {
-            try { api.deleteContainer(id); dismissSheet(); refresh() }
-            catch (e: Exception) { _uiState.update { it.copy(error = e.message) } }
+            sync.startSync()
+            try { action(); sync.endSync(); refresh() }
+            catch (e: Exception) { _uiState.update { it.copy(error = e.message) }; sync.endSync(e.message) }
         }
     }
 
-    fun moveContainer(id: String, locationId: String) {
-        viewModelScope.launch {
-            try { api.moveContainer(id, MoveRequest(locationId)); dismissSheet(); refresh() }
-            catch (e: Exception) { _uiState.update { it.copy(error = e.message) } }
-        }
-    }
-
-    fun fillContainer(id: String, beerId: String) {
-        viewModelScope.launch {
-            try { api.fillContainer(id, FillRequest(beerId)); dismissSheet(); refresh() }
-            catch (e: Exception) { _uiState.update { it.copy(error = e.message) } }
-        }
-    }
-
-    fun destroyBeer(id: String) {
-        viewModelScope.launch {
-            try { api.destroyBeer(id); dismissSheet(); refresh() }
-            catch (e: Exception) { _uiState.update { it.copy(error = e.message) } }
-        }
-    }
-
-    fun reserveContainer(id: String, customerName: String) {
-        viewModelScope.launch {
-            try { api.reserveContainer(id, ReserveRequest(customerName)); dismissSheet(); refresh() }
-            catch (e: Exception) { _uiState.update { it.copy(error = e.message) } }
-        }
-    }
-
-    fun unreserveContainer(id: String) {
-        viewModelScope.launch {
-            try { api.unreserveContainer(id); dismissSheet(); refresh() }
-            catch (e: Exception) { _uiState.update { it.copy(error = e.message) } }
-        }
-    }
-
-    fun sell(containerId: String, brewerId: String, customerLocationId: String) {
-        viewModelScope.launch {
-            try { api.sell(SellRequest(containerId, brewerId, customerLocationId)); dismissSheet(); refresh() }
-            catch (e: Exception) { _uiState.update { it.copy(error = e.message) } }
-        }
-    }
-
-    fun selfConsume(containerId: String, brewerId: String) {
-        viewModelScope.launch {
-            try { api.selfConsume(SelfConsumeRequest(containerId, brewerId)); dismissSheet(); refresh() }
-            catch (e: Exception) { _uiState.update { it.copy(error = e.message) } }
-        }
-    }
-
-    fun containerReturn(containerId: String, brewerId: String, returnLocationId: String) {
-        viewModelScope.launch {
-            try { api.containerReturn(ContainerReturnRequest(containerId, brewerId, returnLocationId)); dismissSheet(); refresh() }
-            catch (e: Exception) { _uiState.update { it.copy(error = e.message) } }
-        }
-    }
-
-    fun batchFill(containerIds: List<String>, beerId: String) {
-        viewModelScope.launch {
-            try { api.batchFill(BatchFillRequest(containerIds, beerId)); refresh() }
-            catch (e: Exception) { _uiState.update { it.copy(error = e.message) } }
-        }
-    }
+    fun deleteContainer(id: String) = containerAction { api.deleteContainer(id); dismissSheet() }
+    fun moveContainer(id: String, locationId: String) = containerAction { api.moveContainer(id, MoveRequest(locationId)); dismissSheet() }
+    fun fillContainer(id: String, beerId: String) = containerAction { api.fillContainer(id, FillRequest(beerId)); dismissSheet() }
+    fun destroyBeer(id: String) = containerAction { api.destroyBeer(id); dismissSheet() }
+    fun reserveContainer(id: String, customerName: String) = containerAction { api.reserveContainer(id, ReserveRequest(customerName)); dismissSheet() }
+    fun unreserveContainer(id: String) = containerAction { api.unreserveContainer(id); dismissSheet() }
+    fun sell(containerId: String, brewerId: String, customerLocationId: String) = containerAction { api.sell(SellRequest(containerId, brewerId, customerLocationId)); dismissSheet() }
+    fun selfConsume(containerId: String, brewerId: String) = containerAction { api.selfConsume(SelfConsumeRequest(containerId, brewerId)); dismissSheet() }
+    fun containerReturn(containerId: String, brewerId: String, returnLocationId: String) = containerAction { api.containerReturn(ContainerReturnRequest(containerId, brewerId, returnLocationId)); dismissSheet() }
+    fun batchFill(containerIds: List<String>, beerId: String) = containerAction { api.batchFill(BatchFillRequest(containerIds, beerId)) }
 }
