@@ -4,7 +4,11 @@
 /.idea
 .DS_Store
 /build
+**/build/
 /captures
 .externalNativeBuild
 .cxx
 local.properties
+
+# Java heap dumps
+*.hprof

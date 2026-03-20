@@ -284,16 +284,16 @@ private fun ContainerActionSheet(
 
             if (!container.isEmpty) {
                 var showSell by remember { mutableStateOf(false) }
-                TextButton(onClick = { showSell = true }, modifier = Modifier.fillMaxWidth()) { Text("💰 Verkaufen (${container.containerType?.externalPrice ?: 0}€ + ${container.containerType?.depositFee ?: 0}€)") }
+                TextButton(onClick = { showSell = true }, modifier = Modifier.fillMaxWidth()) { Text("💰 Verkaufen (${container.containerType?.externalPrice ?: 0} + ${container.containerType?.depositFee ?: 0} CHF)") }
                 if (showSell) TwoPickerDialog("Verkaufen", "Brauer", brewers.map { it.name to it.id }, "Kundenstandort", locations.map { it.name to it.id }, { b, l -> onSell(b, l); showSell = false }, { showSell = false })
 
                 var showConsume by remember { mutableStateOf(false) }
-                TextButton(onClick = { showConsume = true }, modifier = Modifier.fillMaxWidth()) { Text("🍻 Eigenverbrauch (${container.containerType?.internalPrice ?: 0}€)") }
+                TextButton(onClick = { showConsume = true }, modifier = Modifier.fillMaxWidth()) { Text("🍻 Eigenverbrauch (${container.containerType?.internalPrice ?: 0} CHF)") }
                 if (showConsume) PickerDialog("Brauer", brewers.map { it.name to it.id }, { onSelfConsume(it); showConsume = false }, { showConsume = false })
             }
 
             var showReturn by remember { mutableStateOf(false) }
-            TextButton(onClick = { showReturn = true }, modifier = Modifier.fillMaxWidth()) { Text("↩️ Rückgabe (${container.containerType?.depositFee ?: 0}€ Pfand)") }
+            TextButton(onClick = { showReturn = true }, modifier = Modifier.fillMaxWidth()) { Text("↩️ Rückgabe (${container.containerType?.depositFee ?: 0} CHF Pfand)") }
             if (showReturn) TwoPickerDialog("Rückgabe", "Brauer", brewers.map { it.name to it.id }, "Rückgabeort", locations.map { it.name to it.id }, { b, l -> onContainerReturn(b, l); showReturn = false }, { showReturn = false })
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))

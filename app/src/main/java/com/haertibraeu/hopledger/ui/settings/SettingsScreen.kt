@@ -98,7 +98,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
         item {
             SettingsSection(
                 title = "Gebindetypen",
-                items = uiState.containerTypes.map { "${it.name} (${it.externalPrice}€/${it.internalPrice}€, Pfand: ${it.depositFee}€)" },
+                items = uiState.containerTypes.map { "${it.name} (${it.externalPrice}/${it.internalPrice} CHF, Pfand: ${it.depositFee} CHF)" },
                 onAdd = viewModel::showAddContainerType,
                 onDelete = { idx -> uiState.containerTypes.getOrNull(idx)?.let { viewModel.deleteContainerType(it.id) } },
             )
@@ -201,9 +201,9 @@ private fun AddContainerTypeDialog(viewModel: SettingsViewModel) {
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name (z.B. 0.5l Flasche)") })
-                OutlinedTextField(value = externalPrice, onValueChange = { externalPrice = it }, label = { Text("Verkaufspreis (€)") })
-                OutlinedTextField(value = internalPrice, onValueChange = { internalPrice = it }, label = { Text("Eigenverbrauch (€)") })
-                OutlinedTextField(value = depositFee, onValueChange = { depositFee = it }, label = { Text("Pfand (€)") })
+                OutlinedTextField(value = externalPrice, onValueChange = { externalPrice = it }, label = { Text("Verkaufspreis (CHF)") })
+                OutlinedTextField(value = internalPrice, onValueChange = { internalPrice = it }, label = { Text("Eigenverbrauch (CHF)") })
+                OutlinedTextField(value = depositFee, onValueChange = { depositFee = it }, label = { Text("Pfand (CHF)") })
             }
         },
         confirmButton = {

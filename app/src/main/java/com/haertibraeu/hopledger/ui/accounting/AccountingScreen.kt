@@ -83,7 +83,7 @@ fun AccountingScreen(viewModel: AccountingViewModel = hiltViewModel()) {
                         ) {
                             Text(entry.type, style = MaterialTheme.typography.labelMedium)
                             Text(
-                                "${if (entry.amount >= 0) "+" else ""}${"%.2f".format(entry.amount)}€",
+                                "${if (entry.amount >= 0) "+" else ""}${"%.2f".format(entry.amount)} CHF",
                                 fontWeight = FontWeight.Bold,
                                 color = if (entry.amount >= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
                             )
@@ -127,7 +127,7 @@ fun AccountingScreen(viewModel: AccountingViewModel = hiltViewModel()) {
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                 ) {
                                     Text("${s.from.name} → ${s.to.name}")
-                                    Text("${"%.2f".format(s.amount)}€", fontWeight = FontWeight.Bold)
+                                    Text("${"%.2f".format(s.amount)} CHF", fontWeight = FontWeight.Bold)
                                 }
                             }
                         }
@@ -154,7 +154,7 @@ private fun BalanceCard(balance: Balance) {
         ) {
             Text(balance.brewerName, style = MaterialTheme.typography.titleSmall)
             Text(
-                "${"%.2f".format(balance.balance)}€",
+                "${"%.2f".format(balance.balance)} CHF",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = when {
@@ -187,7 +187,7 @@ private fun ManualEntryDialog(viewModel: AccountingViewModel) {
                         Text(brewer.name)
                     }
                 }
-                OutlinedTextField(value = amount, onValueChange = { amount = it }, label = { Text("Betrag (€)") })
+                OutlinedTextField(value = amount, onValueChange = { amount = it }, label = { Text("Betrag (CHF)") })
                 OutlinedTextField(value = description, onValueChange = { description = it }, label = { Text("Beschreibung") })
                 OutlinedTextField(value = type, onValueChange = { type = it }, label = { Text("Typ") })
             }

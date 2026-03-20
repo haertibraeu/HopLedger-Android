@@ -2,7 +2,7 @@ package com.haertibraeu.hopledger.ui.navigation
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AccountBalance
+import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -22,7 +22,7 @@ import com.haertibraeu.hopledger.ui.settings.SettingsScreen
 
 enum class Screen(val route: String, val label: String, val icon: ImageVector) {
     Inventory("inventory", "Inventar", Icons.Default.Inventory2),
-    Accounting("accounting", "Abrechnung", Icons.Default.AccountBalance),
+    Accounting("accounting", "Finanzen", Icons.Default.Payments),
     Settings("settings", "Einstellungen", Icons.Default.Settings),
 }
 
