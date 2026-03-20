@@ -1,6 +1,7 @@
 package com.haertibraeu.hopledger.ui.inventory
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -10,6 +11,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -52,7 +54,7 @@ fun InventoryScreen(viewModel: InventoryViewModel = hiltViewModel()) {
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.fillMaxSize(),
                 ) {
-                    items(uiState.groups, key = { "${it.containerTypeId}_${it.beerId}_${it.locationId}" }) { group ->
+                    items(uiState.groups, key = { "${it.containerTypeId}_${it.beerId}_${it.locationId}_${it.reservedFor}" }) { group ->
                         ContainerGroupCard(group) { viewModel.selectGroup(group) }
                     }
                 }
@@ -109,44 +111,108 @@ private fun FilterRow(
     onLocationFilter: (String?) -> Unit,
     onBeerFilter: (String?) -> Unit,
 ) {
+    val anyActive = statusFilter != StatusFilter.ALL || filterLocationId != null || filterBeerId != null
+
+    val statusEmoji = when (statusFilter) {
+        StatusFilter.ALL -> "☰"
+        StatusFilter.FULL -> "🍺"
+        StatusFilter.EMPTY -> "🫙"
+        StatusFilter.RESERVED -> "📋"
+    }
+    val statusLabel = when (statusFilter) {
+        StatusFilter.ALL -> "Status"
+        StatusFilter.FULL -> "Gefüllt"
+        StatusFilter.EMPTY -> "Leer"
+        StatusFilter.RESERVED -> "Reserviert"
+    }
+    val locationName = locations.find { it.id == filterLocationId }?.name
+    val beerName = beers.find { it.id == filterBeerId }?.name
+
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        val statusLabel = when (statusFilter) {
-            StatusFilter.ALL -> "Alle"; StatusFilter.FULL -> "Gefüllt"
-            StatusFilter.EMPTY -> "Leer"; StatusFilter.RESERVED -> "Reserviert"
-        }
-        DropdownFilter(label = statusLabel, modifier = Modifier.weight(1f)) { close ->
-            listOf(StatusFilter.ALL to "Alle", StatusFilter.FULL to "Gefüllt", StatusFilter.EMPTY to "Leer", StatusFilter.RESERVED to "Reserviert").forEach { (f, n) ->
-                DropdownMenuItem(text = { Text(n) }, onClick = { onStatusFilter(f); close() })
+        // Status filter chip
+        FilterDropdownChip(
+            emoji = statusEmoji,
+            label = statusLabel,
+            selected = statusFilter != StatusFilter.ALL,
+        ) { close ->
+            listOf(
+                StatusFilter.ALL to ("☰" to "Alle"),
+                StatusFilter.FULL to ("🍺" to "Gefüllt"),
+                StatusFilter.EMPTY to ("🫙" to "Leer"),
+                StatusFilter.RESERVED to ("📋" to "Reserviert"),
+            ).forEach { (f, pair) ->
+                val (emoji, name) = pair
+                DropdownMenuItem(
+                    leadingIcon = { Text(emoji) },
+                    text = { Text(name) },
+                    onClick = { onStatusFilter(f); close() },
+                )
             }
         }
-        val locLabel = locations.find { it.id == filterLocationId }?.name ?: "Standort"
-        DropdownFilter(label = locLabel, modifier = Modifier.weight(1f)) { close ->
-            DropdownMenuItem(text = { Text("Alle") }, onClick = { onLocationFilter(null); close() })
-            locations.forEach { DropdownMenuItem(text = { Text(it.name) }, onClick = { onLocationFilter(it.id); close() }) }
+
+        // Location filter chip
+        FilterDropdownChip(
+            emoji = "📍",
+            label = locationName ?: "Standort",
+            selected = filterLocationId != null,
+        ) { close ->
+            DropdownMenuItem(leadingIcon = { Text("📍") }, text = { Text("Alle Standorte") }, onClick = { onLocationFilter(null); close() })
+            locations.forEach { loc ->
+                DropdownMenuItem(leadingIcon = { Text("📍") }, text = { Text(loc.name) }, onClick = { onLocationFilter(loc.id); close() })
+            }
         }
-        val beerLabel = beers.find { it.id == filterBeerId }?.name ?: "Bier"
-        DropdownFilter(label = beerLabel, modifier = Modifier.weight(1f)) { close ->
-            DropdownMenuItem(text = { Text("Alle") }, onClick = { onBeerFilter(null); close() })
-            beers.forEach { DropdownMenuItem(text = { Text(it.name) }, onClick = { onBeerFilter(it.id); close() }) }
+
+        // Beer filter chip
+        FilterDropdownChip(
+            emoji = "🍺",
+            label = beerName ?: "Bier",
+            selected = filterBeerId != null,
+        ) { close ->
+            DropdownMenuItem(leadingIcon = { Text("🍺") }, text = { Text("Alle Biere") }, onClick = { onBeerFilter(null); close() })
+            beers.forEach { beer ->
+                DropdownMenuItem(leadingIcon = { Text("🍺") }, text = { Text(beer.name) }, onClick = { onBeerFilter(beer.id); close() })
+            }
+        }
+
+        // Clear all — only visible when any filter is active
+        if (anyActive) {
+            InputChip(
+                selected = false,
+                onClick = {
+                    onStatusFilter(StatusFilter.ALL)
+                    onLocationFilter(null)
+                    onBeerFilter(null)
+                },
+                label = { Text("Zurücksetzen") },
+                leadingIcon = { Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp)) },
+            )
         }
     }
 }
 
 @Composable
-private fun DropdownFilter(label: String, modifier: Modifier = Modifier, content: @Composable (() -> Unit) -> Unit) {
+private fun FilterDropdownChip(
+    emoji: String,
+    label: String,
+    selected: Boolean,
+    content: @Composable (() -> Unit) -> Unit,
+) {
     var expanded by remember { mutableStateOf(false) }
-    Box(modifier = modifier) {
-        OutlinedButton(
+    Box {
+        FilterChip(
+            selected = selected,
             onClick = { expanded = true },
-            modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
-        ) {
-            Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-            Icon(Icons.Default.ArrowDropDown, null, modifier = Modifier.size(16.dp))
-        }
+            label = { Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+            leadingIcon = { Text(emoji, style = MaterialTheme.typography.bodyMedium) },
+            trailingIcon = { Icon(Icons.Default.ArrowDropDown, null, modifier = Modifier.size(16.dp)) },
+        )
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             content { expanded = false }
         }
