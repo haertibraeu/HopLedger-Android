@@ -22,6 +22,7 @@ data class ContainerGroup(
     val location: Location?,
     val count: Int,
     val sampleContainer: Container,
+    val containerIds: List<String>,
 )
 
 data class InventoryUiState(
@@ -36,6 +37,7 @@ data class InventoryUiState(
     val filterLocationId: String? = null,
     val filterBeerId: String? = null,
     val selectedContainer: Container? = null,
+    val selectedGroup: ContainerGroup? = null,
     val showActionSheet: Boolean = false,
     val showAddDialog: Boolean = false,
 )
@@ -108,6 +110,7 @@ class InventoryViewModel @Inject constructor(
                     location = s.location,
                     count = group.size,
                     sampleContainer = s,
+                    containerIds = group.map { it.id },
                 )
             }
             .sortedWith(compareBy({ it.containerType?.name }, { it.beer?.name }, { it.reservedFor }))
@@ -117,9 +120,9 @@ class InventoryViewModel @Inject constructor(
     fun setBeerFilter(id: String?) { _uiState.update { it.copy(filterBeerId = id) }; refresh() }
 
     fun selectGroup(group: ContainerGroup) {
-        _uiState.update { it.copy(selectedContainer = group.sampleContainer, showActionSheet = true) }
+        _uiState.update { it.copy(selectedContainer = group.sampleContainer, selectedGroup = group, showActionSheet = true) }
     }
-    fun dismissSheet() { _uiState.update { it.copy(showActionSheet = false, selectedContainer = null) } }
+    fun dismissSheet() { _uiState.update { it.copy(showActionSheet = false, selectedContainer = null, selectedGroup = null) } }
     fun showAddDialog() { _uiState.update { it.copy(showAddDialog = true) } }
     fun dismissAddDialog() { _uiState.update { it.copy(showAddDialog = false) } }
 
@@ -158,4 +161,14 @@ class InventoryViewModel @Inject constructor(
     fun selfConsume(containerId: String, brewerId: String) = containerAction { api.selfConsume(SelfConsumeRequest(containerId, brewerId)); dismissSheet() }
     fun containerReturn(containerId: String, brewerId: String, returnLocationId: String) = containerAction { api.containerReturn(ContainerReturnRequest(containerId, brewerId, returnLocationId)); dismissSheet() }
     fun batchFill(containerIds: List<String>, beerId: String) = containerAction { api.batchFill(BatchFillRequest(containerIds, beerId)) }
+
+    fun batchMove(ids: List<String>, locationId: String) = containerAction { ids.forEach { api.moveContainer(it, MoveRequest(locationId)) }; dismissSheet() }
+    fun batchFillContainers(ids: List<String>, beerId: String) = containerAction { ids.forEach { api.fillContainer(it, FillRequest(beerId)) }; dismissSheet() }
+    fun batchDestroyBeer(ids: List<String>) = containerAction { ids.forEach { api.destroyBeer(it) }; dismissSheet() }
+    fun batchDelete(ids: List<String>) = containerAction { ids.forEach { api.deleteContainer(it) }; dismissSheet() }
+    fun batchReserve(ids: List<String>, customerName: String) = containerAction { ids.forEach { api.reserveContainer(it, ReserveRequest(customerName)) }; dismissSheet() }
+    fun batchUnreserve(ids: List<String>) = containerAction { ids.forEach { api.unreserveContainer(it) }; dismissSheet() }
+    fun batchSell(ids: List<String>, brewerId: String, customerLocationId: String) = containerAction { ids.forEach { api.sell(SellRequest(it, brewerId, customerLocationId)) }; dismissSheet() }
+    fun batchSelfConsume(ids: List<String>, brewerId: String) = containerAction { ids.forEach { api.selfConsume(SelfConsumeRequest(it, brewerId)) }; dismissSheet() }
+    fun batchReturn(ids: List<String>, brewerId: String, returnLocationId: String) = containerAction { ids.forEach { api.containerReturn(ContainerReturnRequest(it, brewerId, returnLocationId)) }; dismissSheet() }
 }

@@ -17,6 +17,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -78,22 +79,22 @@ fun InventoryScreen(viewModel: InventoryViewModel = hiltViewModel()) {
         )
     }
 
-    if (uiState.showActionSheet && uiState.selectedContainer != null) {
+    if (uiState.showActionSheet && uiState.selectedGroup != null) {
         ContainerActionSheet(
-            container = uiState.selectedContainer!!,
+            group = uiState.selectedGroup!!,
             brewers = uiState.brewers,
             beers = uiState.beers,
             locations = uiState.locations,
             onDismiss = viewModel::dismissSheet,
-            onMove = { viewModel.moveContainer(uiState.selectedContainer!!.id, it) },
-            onFill = { viewModel.fillContainer(uiState.selectedContainer!!.id, it) },
-            onDestroyBeer = { viewModel.destroyBeer(uiState.selectedContainer!!.id) },
-            onReserve = { viewModel.reserveContainer(uiState.selectedContainer!!.id, it) },
-            onUnreserve = { viewModel.unreserveContainer(uiState.selectedContainer!!.id) },
-            onSell = { b, l -> viewModel.sell(uiState.selectedContainer!!.id, b, l) },
-            onSelfConsume = { viewModel.selfConsume(uiState.selectedContainer!!.id, it) },
-            onContainerReturn = { b, l -> viewModel.containerReturn(uiState.selectedContainer!!.id, b, l) },
-            onDelete = { viewModel.deleteContainer(uiState.selectedContainer!!.id) },
+            onMove = { ids, loc -> viewModel.batchMove(ids, loc) },
+            onFill = { ids, beer -> viewModel.batchFillContainers(ids, beer) },
+            onDestroyBeer = { ids -> viewModel.batchDestroyBeer(ids) },
+            onReserve = { ids, name -> viewModel.batchReserve(ids, name) },
+            onUnreserve = { ids -> viewModel.batchUnreserve(ids) },
+            onSell = { ids, b, l -> viewModel.batchSell(ids, b, l) },
+            onSelfConsume = { ids, b -> viewModel.batchSelfConsume(ids, b) },
+            onContainerReturn = { ids, b, l -> viewModel.batchReturn(ids, b, l) },
+            onDelete = { ids -> viewModel.batchDelete(ids) },
         )
     }
 }
@@ -319,64 +320,148 @@ private fun SpinnerField(value: String, options: List<Pair<String, String>>, onS
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ContainerActionSheet(
-    container: com.haertibraeu.hopledger.data.model.Container,
+    group: ContainerGroup,
     brewers: List<com.haertibraeu.hopledger.data.model.Brewer>,
     beers: List<com.haertibraeu.hopledger.data.model.Beer>,
     locations: List<com.haertibraeu.hopledger.data.model.Location>,
     onDismiss: () -> Unit,
-    onMove: (String) -> Unit, onFill: (String) -> Unit, onDestroyBeer: () -> Unit,
-    onReserve: (String) -> Unit, onUnreserve: () -> Unit,
-    onSell: (String, String) -> Unit, onSelfConsume: (String) -> Unit,
-    onContainerReturn: (String, String) -> Unit, onDelete: () -> Unit,
+    onMove: (List<String>, String) -> Unit,
+    onFill: (List<String>, String) -> Unit,
+    onDestroyBeer: (List<String>) -> Unit,
+    onReserve: (List<String>, String) -> Unit,
+    onUnreserve: (List<String>) -> Unit,
+    onSell: (List<String>, String, String) -> Unit,
+    onSelfConsume: (List<String>, String) -> Unit,
+    onContainerReturn: (List<String>, String, String) -> Unit,
+    onDelete: (List<String>) -> Unit,
 ) {
-    ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Text("${container.containerType?.name} · ${if (container.isEmpty) "Leer" else container.beer?.name ?: "?"}", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
+    val container = group.sampleContainer
+    var quantity by remember { mutableIntStateOf(group.count) }
+    val ids = group.containerIds.take(quantity)
 
-            var showMove by remember { mutableStateOf(false) }
+    var showMove by remember { mutableStateOf(false) }
+    var showFill by remember { mutableStateOf(false) }
+    var showReserve by remember { mutableStateOf(false) }
+    var customerName by remember { mutableStateOf("") }
+    var showSell by remember { mutableStateOf(false) }
+    var showConsume by remember { mutableStateOf(false) }
+    var showReturn by remember { mutableStateOf(false) }
+    var showDestroyBeerConfirm by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
+
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            // ── Title row with optional quantity spinner ──────────────────
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Text(
+                    "${container.containerType?.name} · ${if (container.isEmpty) "Leer" else container.beer?.name ?: "?"}",
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f),
+                )
+                if (group.count > 1) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        FilledTonalIconButton(
+                            onClick = { if (quantity > 1) quantity-- },
+                            enabled = quantity > 1,
+                            modifier = Modifier.size(32.dp),
+                        ) { Text("−") }
+                        Text("$quantity", style = MaterialTheme.typography.titleMedium, modifier = Modifier.widthIn(min = 28.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                        FilledTonalIconButton(
+                            onClick = { if (quantity < group.count) quantity++ },
+                            enabled = quantity < group.count,
+                            modifier = Modifier.size(32.dp),
+                        ) { Text("+") }
+                    }
+                }
+            }
+
+            // ── Standard actions ──────────────────────────────────────────
             TextButton(onClick = { showMove = true }, modifier = Modifier.fillMaxWidth()) { Text("📦 Verschieben") }
-            if (showMove) PickerDialog("Neuer Standort", locations.map { it.name to it.id }, { onMove(it); showMove = false }, { showMove = false })
 
             if (container.isEmpty) {
-                var showFill by remember { mutableStateOf(false) }
                 TextButton(onClick = { showFill = true }, modifier = Modifier.fillMaxWidth()) { Text("🍺 Befüllen") }
-                if (showFill) PickerDialog("Bier auswählen", beers.map { it.name to it.id }, { onFill(it); showFill = false }, { showFill = false })
-            } else {
-                TextButton(onClick = onDestroyBeer, modifier = Modifier.fillMaxWidth()) { Text("🗑️ Bier vernichten") }
             }
 
             if (!container.isEmpty && !container.isReserved) {
-                var showReserve by remember { mutableStateOf(false) }
-                var customerName by remember { mutableStateOf("") }
                 TextButton(onClick = { showReserve = true }, modifier = Modifier.fillMaxWidth()) { Text("📋 Reservieren") }
-                if (showReserve) AlertDialog(onDismissRequest = { showReserve = false }, title = { Text("Reservieren für") },
-                    text = { OutlinedTextField(value = customerName, onValueChange = { customerName = it }, label = { Text("Kundenname") }) },
-                    confirmButton = { TextButton(onClick = { onReserve(customerName); showReserve = false }) { Text("OK") } },
-                    dismissButton = { TextButton(onClick = { showReserve = false }) { Text("Abbrechen") } })
             }
             if (container.isReserved) {
-                TextButton(onClick = onUnreserve, modifier = Modifier.fillMaxWidth()) { Text("📋 Reservierung aufheben (${container.reservedFor})") }
+                TextButton(onClick = { onUnreserve(ids) }, modifier = Modifier.fillMaxWidth()) { Text("📋 Reservierung aufheben (${container.reservedFor})") }
             }
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
             if (!container.isEmpty) {
-                var showSell by remember { mutableStateOf(false) }
                 TextButton(onClick = { showSell = true }, modifier = Modifier.fillMaxWidth()) { Text("💰 Verkaufen (${container.containerType?.externalPrice ?: 0} + ${container.containerType?.depositFee ?: 0} CHF)") }
-                if (showSell) TwoPickerDialog("Verkaufen", "Brauer", brewers.map { it.name to it.id }, "Kundenstandort", locations.map { it.name to it.id }, { b, l -> onSell(b, l); showSell = false }, { showSell = false })
-
-                var showConsume by remember { mutableStateOf(false) }
                 TextButton(onClick = { showConsume = true }, modifier = Modifier.fillMaxWidth()) { Text("🍻 Eigenverbrauch (${container.containerType?.internalPrice ?: 0} CHF)") }
-                if (showConsume) PickerDialog("Brauer", brewers.map { it.name to it.id }, { onSelfConsume(it); showConsume = false }, { showConsume = false })
             }
 
-            var showReturn by remember { mutableStateOf(false) }
             TextButton(onClick = { showReturn = true }, modifier = Modifier.fillMaxWidth()) { Text("↩️ Rückgabe (${container.containerType?.depositFee ?: 0} CHF Pfand)") }
-            if (showReturn) TwoPickerDialog("Rückgabe", "Brauer", brewers.map { it.name to it.id }, "Rückgabeort", locations.map { it.name to it.id }, { b, l -> onContainerReturn(b, l); showReturn = false }, { showReturn = false })
 
+            // ── Danger zone ───────────────────────────────────────────────
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-            TextButton(onClick = onDelete, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("🗑️ Gebinde löschen") }
+
+            if (!container.isEmpty) {
+                TextButton(
+                    onClick = { showDestroyBeerConfirm = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                ) { Text("🗑️ Bier vernichten") }
+            }
+
+            TextButton(
+                onClick = { showDeleteConfirm = true },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+            ) { Text("🗑️ Gebinde löschen") }
         }
+    }
+
+    // ── Sub-dialogs ───────────────────────────────────────────────────────────
+    if (showMove) PickerDialog("Neuer Standort", locations.map { it.name to it.id }, { onMove(ids, it); showMove = false }, { showMove = false })
+    if (showFill) PickerDialog("Bier auswählen", beers.map { it.name to it.id }, { onFill(ids, it); showFill = false }, { showFill = false })
+
+    if (showReserve) {
+        AlertDialog(
+            onDismissRequest = { showReserve = false },
+            title = { Text("Reservieren für") },
+            text = { OutlinedTextField(value = customerName, onValueChange = { customerName = it }, label = { Text("Kundenname") }) },
+            confirmButton = { TextButton(onClick = { onReserve(ids, customerName); showReserve = false }) { Text("OK") } },
+            dismissButton = { TextButton(onClick = { showReserve = false }) { Text("Abbrechen") } },
+        )
+    }
+
+    if (showSell) TwoPickerDialog("Verkaufen", "Brauer", brewers.map { it.name to it.id }, "Kundenstandort", locations.map { it.name to it.id }, { b, l -> onSell(ids, b, l); showSell = false }, { showSell = false })
+    if (showConsume) PickerDialog("Brauer", brewers.map { it.name to it.id }, { onSelfConsume(ids, it); showConsume = false }, { showConsume = false })
+    if (showReturn) TwoPickerDialog("Rückgabe", "Brauer", brewers.map { it.name to it.id }, "Rückgabeort", locations.map { it.name to it.id }, { b, l -> onContainerReturn(ids, b, l); showReturn = false }, { showReturn = false })
+
+    if (showDestroyBeerConfirm) {
+        val qLabel = if (quantity == 1) "diesem Gebinde" else "$quantity Gebinden"
+        AlertDialog(
+            onDismissRequest = { showDestroyBeerConfirm = false },
+            title = { Text("Bier vernichten?") },
+            text = { Text("Das Bier in $qLabel wird als vernichtet markiert. Die Gebinde werden leer — der Inhalt geht verloren. Diese Aktion kann nicht rückgängig gemacht werden.") },
+            confirmButton = { TextButton(onClick = { onDestroyBeer(ids); showDestroyBeerConfirm = false }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Vernichten") } },
+            dismissButton = { TextButton(onClick = { showDestroyBeerConfirm = false }) { Text("Abbrechen") } },
+        )
+    }
+
+    if (showDeleteConfirm) {
+        val qLabel = if (quantity == 1) "dieses Gebinde" else "diese $quantity Gebinde"
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Gebinde löschen?") },
+            text = { Text("Du bist dabei, $qLabel endgültig aus dem System zu löschen. Alle zugehörigen Daten (Füllstand, Reservierungen) gehen verloren. Diese Aktion kann nicht rückgängig gemacht werden.") },
+            confirmButton = { TextButton(onClick = { onDelete(ids); showDeleteConfirm = false }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Löschen") } },
+            dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text("Abbrechen") } },
+        )
     }
 }
 
