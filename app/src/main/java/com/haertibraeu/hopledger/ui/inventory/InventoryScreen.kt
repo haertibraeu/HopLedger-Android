@@ -2,17 +2,20 @@ package com.haertibraeu.hopledger.ui.inventory
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 
@@ -23,58 +26,38 @@ fun InventoryScreen(viewModel: InventoryViewModel = hiltViewModel()) {
 
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Filter chips
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                FilterChip(
-                    selected = uiState.filterEmpty == false,
-                    onClick = { viewModel.setFilterEmpty(if (uiState.filterEmpty == false) null else false) },
-                    label = { Text("Gefüllt") },
-                )
-                FilterChip(
-                    selected = uiState.filterEmpty == true,
-                    onClick = { viewModel.setFilterEmpty(if (uiState.filterEmpty == true) null else true) },
-                    label = { Text("Leer") },
-                )
-                FilterChip(
-                    selected = uiState.filterReserved == true,
-                    onClick = { viewModel.setFilterReserved(if (uiState.filterReserved == true) null else true) },
-                    label = { Text("Reserviert") },
-                )
+            FilterRow(
+                statusFilter = uiState.statusFilter,
+                locations = uiState.locations,
+                beers = uiState.beers,
+                filterLocationId = uiState.filterLocationId,
+                filterBeerId = uiState.filterBeerId,
+                onStatusFilter = viewModel::setStatusFilter,
+                onLocationFilter = viewModel::setLocationFilter,
+                onBeerFilter = viewModel::setBeerFilter,
+            )
+            if (uiState.isLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            uiState.error?.let {
+                Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(horizontal = 16.dp))
             }
-
-            if (uiState.isLoading) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-            }
-
-            uiState.error?.let { error ->
-                Text(error, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(16.dp))
-            }
-
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                items(uiState.containers, key = { it.id }) { container ->
-                    ContainerCard(container) { viewModel.selectContainer(container) }
+            if (uiState.groups.isEmpty() && !uiState.isLoading) {
+                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Text("Keine Gebinde gefunden", style = MaterialTheme.typography.bodyLarge)
                 }
-
-                if (uiState.containers.isEmpty() && !uiState.isLoading) {
-                    item {
-                        Text(
-                            "Keine Gebinde gefunden",
-                            modifier = Modifier.padding(32.dp).fillMaxWidth(),
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
+            } else {
+                LazyVerticalGrid(
+                    columns = GridCells.Fixed(2),
+                    contentPadding = PaddingValues(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    items(uiState.groups, key = { "${it.containerTypeId}_${it.beerId}_${it.locationId}" }) { group ->
+                        ContainerGroupCard(group) { viewModel.selectGroup(group) }
                     }
                 }
             }
         }
-
-        // FAB
         FloatingActionButton(
             onClick = viewModel::showAddDialog,
             modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
@@ -83,18 +66,16 @@ fun InventoryScreen(viewModel: InventoryViewModel = hiltViewModel()) {
         }
     }
 
-    // Add container dialog
     if (uiState.showAddDialog) {
         AddContainerDialog(
             containerTypes = uiState.containerTypes,
             locations = uiState.locations,
             beers = uiState.beers,
-            onConfirm = { ctId, locId, beerId -> viewModel.addContainer(ctId, locId, beerId) },
+            onConfirm = { ctId, locId, beerId, count -> viewModel.addContainer(ctId, locId, beerId, count) },
             onDismiss = viewModel::dismissAddDialog,
         )
     }
 
-    // Container action bottom sheet
     if (uiState.showActionSheet && uiState.selectedContainer != null) {
         ContainerActionSheet(
             container = uiState.selectedContainer!!,
@@ -102,51 +83,160 @@ fun InventoryScreen(viewModel: InventoryViewModel = hiltViewModel()) {
             beers = uiState.beers,
             locations = uiState.locations,
             onDismiss = viewModel::dismissSheet,
-            onMove = { locationId -> viewModel.moveContainer(uiState.selectedContainer!!.id, locationId) },
-            onFill = { beerId -> viewModel.fillContainer(uiState.selectedContainer!!.id, beerId) },
+            onMove = { viewModel.moveContainer(uiState.selectedContainer!!.id, it) },
+            onFill = { viewModel.fillContainer(uiState.selectedContainer!!.id, it) },
             onDestroyBeer = { viewModel.destroyBeer(uiState.selectedContainer!!.id) },
-            onReserve = { name -> viewModel.reserveContainer(uiState.selectedContainer!!.id, name) },
+            onReserve = { viewModel.reserveContainer(uiState.selectedContainer!!.id, it) },
             onUnreserve = { viewModel.unreserveContainer(uiState.selectedContainer!!.id) },
-            onSell = { brewerId, locId -> viewModel.sell(uiState.selectedContainer!!.id, brewerId, locId) },
-            onSelfConsume = { brewerId -> viewModel.selfConsume(uiState.selectedContainer!!.id, brewerId) },
-            onContainerReturn = { brewerId, locId -> viewModel.containerReturn(uiState.selectedContainer!!.id, brewerId, locId) },
+            onSell = { b, l -> viewModel.sell(uiState.selectedContainer!!.id, b, l) },
+            onSelfConsume = { viewModel.selfConsume(uiState.selectedContainer!!.id, it) },
+            onContainerReturn = { b, l -> viewModel.containerReturn(uiState.selectedContainer!!.id, b, l) },
             onDelete = { viewModel.deleteContainer(uiState.selectedContainer!!.id) },
         )
     }
 }
 
+// ── Filter row ───────────────────────────────────────────────────────────────
+
 @Composable
-private fun ContainerCard(container: com.haertibraeu.hopledger.data.model.Container, onClick: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+private fun FilterRow(
+    statusFilter: StatusFilter,
+    locations: List<com.haertibraeu.hopledger.data.model.Location>,
+    beers: List<com.haertibraeu.hopledger.data.model.Beer>,
+    filterLocationId: String?,
+    filterBeerId: String?,
+    onStatusFilter: (StatusFilter) -> Unit,
+    onLocationFilter: (String?) -> Unit,
+    onBeerFilter: (String?) -> Unit,
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-            ) {
-                Text(
-                    container.containerType?.name ?: "Unknown type",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                )
-                if (container.isReserved) {
-                    AssistChip(onClick = {}, label = { Text("Reserviert: ${container.reservedFor}") })
-                }
+        val statusLabel = when (statusFilter) {
+            StatusFilter.ALL -> "Alle"; StatusFilter.FULL -> "Gefüllt"
+            StatusFilter.EMPTY -> "Leer"; StatusFilter.RESERVED -> "Reserviert"
+        }
+        DropdownFilter(label = statusLabel, modifier = Modifier.weight(1f)) { close ->
+            listOf(StatusFilter.ALL to "Alle", StatusFilter.FULL to "Gefüllt", StatusFilter.EMPTY to "Leer", StatusFilter.RESERVED to "Reserviert").forEach { (f, n) ->
+                DropdownMenuItem(text = { Text(n) }, onClick = { onStatusFilter(f); close() })
             }
-            Spacer(Modifier.height(4.dp))
-            Text(
-                if (container.isEmpty) "🫙 Leer" else "🍺 ${container.beer?.name ?: "Unbekannt"}",
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Text(
-                "📍 ${container.location?.name ?: "Unbekannt"}",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        }
+        val locLabel = locations.find { it.id == filterLocationId }?.name ?: "Standort"
+        DropdownFilter(label = locLabel, modifier = Modifier.weight(1f)) { close ->
+            DropdownMenuItem(text = { Text("Alle") }, onClick = { onLocationFilter(null); close() })
+            locations.forEach { DropdownMenuItem(text = { Text(it.name) }, onClick = { onLocationFilter(it.id); close() }) }
+        }
+        val beerLabel = beers.find { it.id == filterBeerId }?.name ?: "Bier"
+        DropdownFilter(label = beerLabel, modifier = Modifier.weight(1f)) { close ->
+            DropdownMenuItem(text = { Text("Alle") }, onClick = { onBeerFilter(null); close() })
+            beers.forEach { DropdownMenuItem(text = { Text(it.name) }, onClick = { onBeerFilter(it.id); close() }) }
         }
     }
 }
+
+@Composable
+private fun DropdownFilter(label: String, modifier: Modifier = Modifier, content: @Composable (() -> Unit) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Box(modifier = modifier) {
+        OutlinedButton(
+            onClick = { expanded = true },
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp),
+        ) {
+            Text(label, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+            Icon(Icons.Default.ArrowDropDown, null, modifier = Modifier.size(16.dp))
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            content { expanded = false }
+        }
+    }
+}
+
+// ── Container group card ──────────────────────────────────────────────────────
+
+@Composable
+private fun ContainerGroupCard(group: ContainerGroup, onClick: () -> Unit) {
+    Card(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick)) {
+        Column(modifier = Modifier.padding(10.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+                Text(group.containerType?.name ?: "?", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
+                if (group.count > 1) Badge { Text("×${group.count}") }
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(if (group.beer == null) "🫙 Leer" else "🍺 ${group.beer.name}", style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("📍 ${group.location?.name ?: "?"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (group.reservedCount > 0) Text("📋 ${group.reservedCount} res.", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary)
+        }
+    }
+}
+
+// ── Add container dialog ──────────────────────────────────────────────────────
+
+@Composable
+private fun AddContainerDialog(
+    containerTypes: List<com.haertibraeu.hopledger.data.model.ContainerType>,
+    locations: List<com.haertibraeu.hopledger.data.model.Location>,
+    beers: List<com.haertibraeu.hopledger.data.model.Beer>,
+    onConfirm: (containerTypeId: String, locationId: String, beerId: String?, count: Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val defaultLocation = locations.firstOrNull { it.type == "brewery" } ?: locations.firstOrNull()
+    var selectedTypeId by remember { mutableStateOf(containerTypes.firstOrNull()?.id ?: "") }
+    var selectedLocationId by remember { mutableStateOf(defaultLocation?.id ?: "") }
+    var selectedBeerId by remember { mutableStateOf("") }
+    var countText by remember { mutableStateOf("1") }
+
+    val selectedTypeName = containerTypes.find { it.id == selectedTypeId }?.name ?: "Auswählen…"
+    val selectedLocationName = locations.find { it.id == selectedLocationId }?.name ?: "Auswählen…"
+    val selectedBeerName = if (selectedBeerId.isBlank()) "Leer" else beers.find { it.id == selectedBeerId }?.name ?: "Auswählen…"
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Gebinde hinzufügen") },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Gebindetyp", style = MaterialTheme.typography.labelLarge)
+                SpinnerField(selectedTypeName, containerTypes.map { it.name to it.id }) { selectedTypeId = it }
+                Text("Standort", style = MaterialTheme.typography.labelLarge)
+                SpinnerField(selectedLocationName, locations.map { "${it.name} [${it.type}]" to it.id }) { selectedLocationId = it }
+                Text("Bier (optional)", style = MaterialTheme.typography.labelLarge)
+                SpinnerField(selectedBeerName, listOf("Leer" to "") + beers.map { it.name to it.id }) { selectedBeerId = it }
+                Text("Anzahl", style = MaterialTheme.typography.labelLarge)
+                OutlinedTextField(
+                    value = countText,
+                    onValueChange = { if (it.all(Char::isDigit) && it.length <= 2) countText = it },
+                    label = { Text("Stück (max. 50)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(selectedTypeId, selectedLocationId, selectedBeerId.ifBlank { null }, countText.toIntOrNull() ?: 1) },
+                enabled = selectedTypeId.isNotBlank() && selectedLocationId.isNotBlank(),
+            ) { Text("Hinzufügen") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } },
+    )
+}
+
+@Composable
+private fun SpinnerField(value: String, options: List<Pair<String, String>>, onSelect: (String) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
+            Text(value, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Icon(Icons.Default.ArrowDropDown, null)
+        }
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            options.forEach { (label, id) -> DropdownMenuItem(text = { Text(label) }, onClick = { onSelect(id); expanded = false }) }
+        }
+    }
+}
+
+// ── Action bottom sheet ───────────────────────────────────────────────────────
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -156,224 +246,82 @@ private fun ContainerActionSheet(
     beers: List<com.haertibraeu.hopledger.data.model.Beer>,
     locations: List<com.haertibraeu.hopledger.data.model.Location>,
     onDismiss: () -> Unit,
-    onMove: (String) -> Unit,
-    onFill: (String) -> Unit,
-    onDestroyBeer: () -> Unit,
-    onReserve: (String) -> Unit,
-    onUnreserve: () -> Unit,
-    onSell: (String, String) -> Unit,
-    onSelfConsume: (String) -> Unit,
-    onContainerReturn: (String, String) -> Unit,
-    onDelete: () -> Unit,
+    onMove: (String) -> Unit, onFill: (String) -> Unit, onDestroyBeer: () -> Unit,
+    onReserve: (String) -> Unit, onUnreserve: () -> Unit,
+    onSell: (String, String) -> Unit, onSelfConsume: (String) -> Unit,
+    onContainerReturn: (String, String) -> Unit, onDelete: () -> Unit,
 ) {
     ModalBottomSheet(onDismissRequest = onDismiss) {
-        Column(
-            modifier = Modifier.fillMaxWidth().padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            Text("${container.containerType?.name}", style = MaterialTheme.typography.titleMedium)
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text("${container.containerType?.name} · ${if (container.isEmpty) "Leer" else container.beer?.name ?: "?"}", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(bottom = 8.dp))
 
-            // Move
-            var showMoveDialog by remember { mutableStateOf(false) }
-            TextButton(onClick = { showMoveDialog = true }) { Text("📦 Verschieben") }
-            if (showMoveDialog) {
-                PickerDialog("Neuer Standort", locations.map { it.name to it.id }, { onMove(it); showMoveDialog = false }, { showMoveDialog = false })
-            }
+            var showMove by remember { mutableStateOf(false) }
+            TextButton(onClick = { showMove = true }, modifier = Modifier.fillMaxWidth()) { Text("📦 Verschieben") }
+            if (showMove) PickerDialog("Neuer Standort", locations.map { it.name to it.id }, { onMove(it); showMove = false }, { showMove = false })
 
-            // Fill (only if empty)
             if (container.isEmpty) {
-                var showFillDialog by remember { mutableStateOf(false) }
-                TextButton(onClick = { showFillDialog = true }) { Text("🍺 Befüllen") }
-                if (showFillDialog) {
-                    PickerDialog("Bier auswählen", beers.map { it.name to it.id }, { onFill(it); showFillDialog = false }, { showFillDialog = false })
-                }
+                var showFill by remember { mutableStateOf(false) }
+                TextButton(onClick = { showFill = true }, modifier = Modifier.fillMaxWidth()) { Text("🍺 Befüllen") }
+                if (showFill) PickerDialog("Bier auswählen", beers.map { it.name to it.id }, { onFill(it); showFill = false }, { showFill = false })
+            } else {
+                TextButton(onClick = onDestroyBeer, modifier = Modifier.fillMaxWidth()) { Text("🗑️ Bier vernichten") }
             }
 
-            // Destroy beer (only if filled)
-            if (!container.isEmpty) {
-                TextButton(onClick = onDestroyBeer) { Text("🗑️ Bier vernichten") }
-            }
-
-            // Reserve / Unreserve
             if (!container.isEmpty && !container.isReserved) {
-                var showReserveDialog by remember { mutableStateOf(false) }
+                var showReserve by remember { mutableStateOf(false) }
                 var customerName by remember { mutableStateOf("") }
-                TextButton(onClick = { showReserveDialog = true }) { Text("📋 Reservieren") }
-                if (showReserveDialog) {
-                    AlertDialog(
-                        onDismissRequest = { showReserveDialog = false },
-                        title = { Text("Reservieren für") },
-                        text = { OutlinedTextField(value = customerName, onValueChange = { customerName = it }, label = { Text("Kundenname") }) },
-                        confirmButton = { TextButton(onClick = { onReserve(customerName); showReserveDialog = false }) { Text("OK") } },
-                        dismissButton = { TextButton(onClick = { showReserveDialog = false }) { Text("Abbrechen") } },
-                    )
-                }
+                TextButton(onClick = { showReserve = true }, modifier = Modifier.fillMaxWidth()) { Text("📋 Reservieren") }
+                if (showReserve) AlertDialog(onDismissRequest = { showReserve = false }, title = { Text("Reservieren für") },
+                    text = { OutlinedTextField(value = customerName, onValueChange = { customerName = it }, label = { Text("Kundenname") }) },
+                    confirmButton = { TextButton(onClick = { onReserve(customerName); showReserve = false }) { Text("OK") } },
+                    dismissButton = { TextButton(onClick = { showReserve = false }) { Text("Abbrechen") } })
             }
             if (container.isReserved) {
-                TextButton(onClick = onUnreserve) { Text("📋 Reservierung aufheben") }
+                TextButton(onClick = onUnreserve, modifier = Modifier.fillMaxWidth()) { Text("📋 Reservierung aufheben (${container.reservedFor})") }
             }
 
-            HorizontalDivider()
+            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
-            // Combined actions (only if filled)
             if (!container.isEmpty) {
-                var showSellDialog by remember { mutableStateOf(false) }
-                TextButton(onClick = { showSellDialog = true }) {
-                    Text("💰 Verkaufen (${container.containerType?.externalPrice ?: 0}€ + ${container.containerType?.depositFee ?: 0}€ Pfand)")
-                }
-                if (showSellDialog) {
-                    TwoPickerDialog(
-                        "Verkaufen", "Brauer", brewers.map { it.name to it.id }, "Kundenstandort", locations.map { it.name to it.id },
-                        { b, l -> onSell(b, l); showSellDialog = false }, { showSellDialog = false },
-                    )
-                }
+                var showSell by remember { mutableStateOf(false) }
+                TextButton(onClick = { showSell = true }, modifier = Modifier.fillMaxWidth()) { Text("💰 Verkaufen (${container.containerType?.externalPrice ?: 0}€ + ${container.containerType?.depositFee ?: 0}€)") }
+                if (showSell) TwoPickerDialog("Verkaufen", "Brauer", brewers.map { it.name to it.id }, "Kundenstandort", locations.map { it.name to it.id }, { b, l -> onSell(b, l); showSell = false }, { showSell = false })
 
-                var showConsumeDialog by remember { mutableStateOf(false) }
-                TextButton(onClick = { showConsumeDialog = true }) {
-                    Text("🍻 Eigenverbrauch (${container.containerType?.internalPrice ?: 0}€)")
-                }
-                if (showConsumeDialog) {
-                    PickerDialog("Brauer", brewers.map { it.name to it.id }, { onSelfConsume(it); showConsumeDialog = false }, { showConsumeDialog = false })
-                }
+                var showConsume by remember { mutableStateOf(false) }
+                TextButton(onClick = { showConsume = true }, modifier = Modifier.fillMaxWidth()) { Text("🍻 Eigenverbrauch (${container.containerType?.internalPrice ?: 0}€)") }
+                if (showConsume) PickerDialog("Brauer", brewers.map { it.name to it.id }, { onSelfConsume(it); showConsume = false }, { showConsume = false })
             }
 
-            // Container return
-            var showReturnDialog by remember { mutableStateOf(false) }
-            TextButton(onClick = { showReturnDialog = true }) {
-                Text("↩️ Rückgabe (${container.containerType?.depositFee ?: 0}€ Pfand)")
-            }
-            if (showReturnDialog) {
-                TwoPickerDialog(
-                    "Rückgabe", "Brauer", brewers.map { it.name to it.id }, "Rückgabeort", locations.map { it.name to it.id },
-                    { b, l -> onContainerReturn(b, l); showReturnDialog = false }, { showReturnDialog = false },
-                )
-            }
+            var showReturn by remember { mutableStateOf(false) }
+            TextButton(onClick = { showReturn = true }, modifier = Modifier.fillMaxWidth()) { Text("↩️ Rückgabe (${container.containerType?.depositFee ?: 0}€ Pfand)") }
+            if (showReturn) TwoPickerDialog("Rückgabe", "Brauer", brewers.map { it.name to it.id }, "Rückgabeort", locations.map { it.name to it.id }, { b, l -> onContainerReturn(b, l); showReturn = false }, { showReturn = false })
 
-            HorizontalDivider()
-            TextButton(onClick = onDelete, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) {
-                Text("🗑️ Gebinde löschen")
-            }
+            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+            TextButton(onClick = onDelete, modifier = Modifier.fillMaxWidth(), colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("🗑️ Gebinde löschen") }
         }
     }
 }
 
 @Composable
 private fun PickerDialog(title: String, options: List<Pair<String, String>>, onSelect: (String) -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            LazyColumn {
-                items(options.size) { idx ->
-                    TextButton(onClick = { onSelect(options[idx].second) }, modifier = Modifier.fillMaxWidth()) {
-                        Text(options[idx].first)
-                    }
-                }
-            }
-        },
-        confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } },
-    )
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(title) },
+        text = { Column(modifier = Modifier.verticalScroll(rememberScrollState())) { options.forEach { (n, id) -> TextButton(onClick = { onSelect(id) }, modifier = Modifier.fillMaxWidth()) { Text(n) } } } },
+        confirmButton = {}, dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } })
 }
 
 @Composable
-private fun TwoPickerDialog(
-    title: String,
-    label1: String, options1: List<Pair<String, String>>,
-    label2: String, options2: List<Pair<String, String>>,
-    onConfirm: (String, String) -> Unit, onDismiss: () -> Unit,
-) {
-    var selected1 by remember { mutableStateOf("") }
-    var selected2 by remember { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
+private fun TwoPickerDialog(title: String, label1: String, options1: List<Pair<String, String>>, label2: String, options2: List<Pair<String, String>>, onConfirm: (String, String) -> Unit, onDismiss: () -> Unit) {
+    var s1 by remember { mutableStateOf("") }
+    var s2 by remember { mutableStateOf("") }
+    AlertDialog(onDismissRequest = onDismiss, title = { Text(title) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(label1, style = MaterialTheme.typography.labelLarge)
-                options1.forEach { (name, id) ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = selected1 == id, onClick = { selected1 = id })
-                        Text(name)
-                    }
-                }
+                options1.forEach { (n, id) -> Row(verticalAlignment = Alignment.CenterVertically) { RadioButton(selected = s1 == id, onClick = { s1 = id }); Text(n) } }
                 Text(label2, style = MaterialTheme.typography.labelLarge)
-                options2.forEach { (name, id) ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = selected2 == id, onClick = { selected2 = id })
-                        Text(name)
-                    }
-                }
+                options2.forEach { (n, id) -> Row(verticalAlignment = Alignment.CenterVertically) { RadioButton(selected = s2 == id, onClick = { s2 = id }); Text(n) } }
             }
         },
-        confirmButton = {
-            TextButton(
-                onClick = { if (selected1.isNotBlank() && selected2.isNotBlank()) onConfirm(selected1, selected2) },
-                enabled = selected1.isNotBlank() && selected2.isNotBlank(),
-            ) { Text("Bestätigen") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } },
-    )
-}
-
-@Composable
-private fun AddContainerDialog(
-    containerTypes: List<com.haertibraeu.hopledger.data.model.ContainerType>,
-    locations: List<com.haertibraeu.hopledger.data.model.Location>,
-    beers: List<com.haertibraeu.hopledger.data.model.Beer>,
-    onConfirm: (containerTypeId: String, locationId: String, beerId: String?) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    var selectedTypeId by remember { mutableStateOf("") }
-    var selectedLocationId by remember { mutableStateOf("") }
-    var selectedBeerId by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("Gebinde hinzufügen") },
-        text = {
-            Column(
-                modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text("Gebindetyp", style = MaterialTheme.typography.labelLarge)
-                if (containerTypes.isEmpty()) {
-                    Text("Keine Gebindetypen vorhanden — erst in Einstellungen anlegen.", color = MaterialTheme.colorScheme.error)
-                }
-                containerTypes.forEach { ct ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = selectedTypeId == ct.id, onClick = { selectedTypeId = ct.id })
-                        Text("${ct.name} (${ct.externalPrice}€)")
-                    }
-                }
-
-                Text("Standort", style = MaterialTheme.typography.labelLarge)
-                locations.forEach { loc ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = selectedLocationId == loc.id, onClick = { selectedLocationId = loc.id })
-                        Text("${loc.name} [${loc.type}]")
-                    }
-                }
-
-                Text("Bier (optional)", style = MaterialTheme.typography.labelLarge)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    RadioButton(selected = selectedBeerId == "", onClick = { selectedBeerId = "" })
-                    Text("Leer")
-                }
-                beers.forEach { beer ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = selectedBeerId == beer.id, onClick = { selectedBeerId = beer.id })
-                        Text(beer.name)
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = { onConfirm(selectedTypeId, selectedLocationId, selectedBeerId.ifBlank { null }) },
-                enabled = selectedTypeId.isNotBlank() && selectedLocationId.isNotBlank(),
-            ) { Text("Hinzufügen") }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } },
-    )
+        confirmButton = { TextButton(onClick = { if (s1.isNotBlank() && s2.isNotBlank()) onConfirm(s1, s2) }, enabled = s1.isNotBlank() && s2.isNotBlank()) { Text("Bestätigen") } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } })
 }
