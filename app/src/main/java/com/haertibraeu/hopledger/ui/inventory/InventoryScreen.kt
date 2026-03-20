@@ -4,6 +4,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.*
@@ -79,6 +81,17 @@ fun InventoryScreen(viewModel: InventoryViewModel = hiltViewModel()) {
         ) {
             Icon(Icons.Default.Add, "Gebinde hinzufügen")
         }
+    }
+
+    // Add container dialog
+    if (uiState.showAddDialog) {
+        AddContainerDialog(
+            containerTypes = uiState.containerTypes,
+            locations = uiState.locations,
+            beers = uiState.beers,
+            onConfirm = { ctId, locId, beerId -> viewModel.addContainer(ctId, locId, beerId) },
+            onDismiss = viewModel::dismissAddDialog,
+        )
     }
 
     // Container action bottom sheet
@@ -298,6 +311,68 @@ private fun TwoPickerDialog(
                 onClick = { if (selected1.isNotBlank() && selected2.isNotBlank()) onConfirm(selected1, selected2) },
                 enabled = selected1.isNotBlank() && selected2.isNotBlank(),
             ) { Text("Bestätigen") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } },
+    )
+}
+
+@Composable
+private fun AddContainerDialog(
+    containerTypes: List<com.haertibraeu.hopledger.data.model.ContainerType>,
+    locations: List<com.haertibraeu.hopledger.data.model.Location>,
+    beers: List<com.haertibraeu.hopledger.data.model.Beer>,
+    onConfirm: (containerTypeId: String, locationId: String, beerId: String?) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var selectedTypeId by remember { mutableStateOf("") }
+    var selectedLocationId by remember { mutableStateOf("") }
+    var selectedBeerId by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Gebinde hinzufügen") },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text("Gebindetyp", style = MaterialTheme.typography.labelLarge)
+                if (containerTypes.isEmpty()) {
+                    Text("Keine Gebindetypen vorhanden — erst in Einstellungen anlegen.", color = MaterialTheme.colorScheme.error)
+                }
+                containerTypes.forEach { ct ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = selectedTypeId == ct.id, onClick = { selectedTypeId = ct.id })
+                        Text("${ct.name} (${ct.externalPrice}€)")
+                    }
+                }
+
+                Text("Standort", style = MaterialTheme.typography.labelLarge)
+                locations.forEach { loc ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = selectedLocationId == loc.id, onClick = { selectedLocationId = loc.id })
+                        Text("${loc.name} [${loc.type}]")
+                    }
+                }
+
+                Text("Bier (optional)", style = MaterialTheme.typography.labelLarge)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    RadioButton(selected = selectedBeerId == "", onClick = { selectedBeerId = "" })
+                    Text("Leer")
+                }
+                beers.forEach { beer ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = selectedBeerId == beer.id, onClick = { selectedBeerId = beer.id })
+                        Text(beer.name)
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onConfirm(selectedTypeId, selectedLocationId, selectedBeerId.ifBlank { null }) },
+                enabled = selectedTypeId.isNotBlank() && selectedLocationId.isNotBlank(),
+            ) { Text("Hinzufügen") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } },
     )
