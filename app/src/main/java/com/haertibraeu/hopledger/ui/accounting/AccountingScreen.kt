@@ -7,22 +7,29 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.haertibraeu.hopledger.data.model.AccountEntry
 import com.haertibraeu.hopledger.data.model.Balance
+import com.haertibraeu.hopledger.data.model.Settlement
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AccountingScreen(viewModel: AccountingViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsState()
+
+    // Refresh every time this screen enters composition (tab switches, navigation back)
+    LaunchedEffect(Unit) { viewModel.refresh() }
 
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -47,7 +54,9 @@ fun AccountingScreen(viewModel: AccountingViewModel = hiltViewModel()) {
             }
             items(uiState.balances) { balance ->
                 BalanceCard(balance)
-            }            if (uiState.balances.isEmpty() && !uiState.isLoading) {
+            }
+
+            if (uiState.balances.isEmpty() && !uiState.isLoading) {
                 item { Text("Keine Brauer erfasst", modifier = Modifier.padding(8.dp)) }
             }
 
@@ -193,8 +202,8 @@ private fun DeleteEntryDialog(entry: AccountEntry, onConfirm: () -> Unit, onDism
 
 @Composable
 private fun SettlementsCard(
-    settlements: List<com.haertibraeu.hopledger.data.model.Settlement>,
-    onSettle: (com.haertibraeu.hopledger.data.model.Settlement) -> Unit,
+    settlements: List<Settlement>,
+    onSettle: (Settlement) -> Unit,
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -287,7 +296,7 @@ private fun BalanceCard(balance: Balance) {
 
 @Composable
 private fun BookSettlementDialog(
-    settlement: com.haertibraeu.hopledger.data.model.Settlement,
+    settlement: Settlement,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -297,7 +306,7 @@ private fun BookSettlementDialog(
         text = {
             Text(
                 "${settlement.from.name} zahlt ${"%.2f".format(settlement.amount)} CHF an ${settlement.to.name}.\n\n" +
-                "Dies wird als Ausgleichszahlung gebucht und die Konten entsprechend angepasst."
+                "Dies wird als neue Buchung erfasst."
             )
         },
         confirmButton = {
@@ -309,103 +318,118 @@ private fun BookSettlementDialog(
     )
 }
 
+// ── Manual entry dialog ──────────────────────────────────────────────────────
 
 @Composable
 private fun ManualEntryDialog(viewModel: AccountingViewModel) {
     val uiState by viewModel.uiState.collectAsState()
-    var selectedBrewerId by remember { mutableStateOf("") }
-    var selectedCategoryId by remember { mutableStateOf<String?>(null) }
+    var selectedBrewerId by remember { mutableStateOf(uiState.brewers.firstOrNull()?.id ?: "") }
     var amountText by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
-    var isExpense by remember { mutableStateOf(false) }
+    var selectedCategoryId by remember { mutableStateOf<String?>(null) }
 
-    // Brewer dropdown
-    var brewerExpanded by remember { mutableStateOf(false) }
-    val selectedBrewerName = uiState.brewers.find { it.id == selectedBrewerId }?.name ?: "Brauer auswählen…"
+    // Update selection if it was empty but brewers are now available
+    if (selectedBrewerId.isEmpty() && uiState.brewers.isNotEmpty()) {
+        selectedBrewerId = uiState.brewers.first().id
+    }
 
-    // Category dropdown
-    var categoryExpanded by remember { mutableStateOf(false) }
-    val selectedCategoryName = uiState.categories.find { it.id == selectedCategoryId }?.name ?: "Kategorie auswählen…"
+    val selectedBrewerName = uiState.brewers.find { it.id == selectedBrewerId }?.name ?: "Auswählen…"
+    val selectedCategoryName = uiState.categories.find { it.id == selectedCategoryId }?.name ?: "Keine Kategorie"
 
     AlertDialog(
         onDismissRequest = viewModel::dismissManualEntryDialog,
         title = { Text("Zahlung erfassen") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                // Expense / income toggle
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                ) {
-                    FilterChip(
-                        selected = !isExpense,
-                        onClick = { isExpense = false },
-                        label = { Text("💰 Einnahme") },
-                        modifier = Modifier.weight(1f),
-                    )
-                    FilterChip(
-                        selected = isExpense,
-                        onClick = { isExpense = true },
-                        label = { Text("🧾 Ausgabe") },
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-
-                // Brewer picker
-                Box {
-                    OutlinedButton(onClick = { brewerExpanded = true }, modifier = Modifier.fillMaxWidth()) {
-                        Text(selectedBrewerName, modifier = Modifier.weight(1f))
-                    }
-                    DropdownMenu(expanded = brewerExpanded, onDismissRequest = { brewerExpanded = false }) {
-                        uiState.brewers.forEach { brewer ->
-                            DropdownMenuItem(text = { Text(brewer.name) }, onClick = { selectedBrewerId = brewer.id; brewerExpanded = false })
-                        }
-                    }
-                }
-
-                // Category picker
-                Box {
-                    OutlinedButton(onClick = { categoryExpanded = true }, modifier = Modifier.fillMaxWidth()) {
-                        Text(selectedCategoryName, modifier = Modifier.weight(1f))
-                    }
-                    DropdownMenu(expanded = categoryExpanded, onDismissRequest = { categoryExpanded = false }) {
-                        DropdownMenuItem(text = { Text("Keine Kategorie") }, onClick = { selectedCategoryId = null; categoryExpanded = false })
-                        uiState.categories.forEach { category ->
-                            DropdownMenuItem(text = { Text(category.name) }, onClick = { selectedCategoryId = category.id; categoryExpanded = false })
-                        }
-                    }
-                }
-
-                OutlinedTextField(
-                    value = amountText,
-                    onValueChange = { if (it.isEmpty() || it.matches(Regex("\\d*\\.?\\d*"))) amountText = it },
-                    label = { Text("Betrag (CHF)") },
-                    prefix = { Text(if (isExpense) "−" else "+") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text("Brauer", style = MaterialTheme.typography.labelLarge)
+                SpinnerField(
+                    value = selectedBrewerName,
+                    options = uiState.brewers.map { it.name to it.id },
+                    onSelect = { selectedBrewerId = it ?: "" }
                 )
 
+                Text("Betrag (CHF)", style = MaterialTheme.typography.labelLarge)
+                OutlinedTextField(
+                    value = amountText,
+                    onValueChange = { amountText = it.replace(',', '.') },
+                    label = { Text("z.B. 15.50 oder -10.00") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Text("Beschreibung", style = MaterialTheme.typography.labelLarge)
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },
-                    label = { Text("Beschreibung (optional)") },
-                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Zweck (optional)") },
                     singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Text("Kategorie", style = MaterialTheme.typography.labelLarge)
+                SpinnerField(
+                    value = selectedCategoryName,
+                    options = listOf("Keine Kategorie" to null) + uiState.categories.map { it.name to it.id },
+                    onSelect = { selectedCategoryId = it }
                 )
             }
         },
         confirmButton = {
             TextButton(
                 onClick = {
-                    val amt = amountText.toDoubleOrNull() ?: return@TextButton
-                    val signed = if (isExpense) -amt else amt
-                    viewModel.addManualEntry(selectedBrewerId, signed, description, "manual", selectedCategoryId)
+                    val amount = amountText.toDoubleOrNull() ?: 0.0
+                    viewModel.addManualEntry(selectedBrewerId, amount, description, "manual", selectedCategoryId)
                 },
-                enabled = selectedBrewerId.isNotBlank() && amountText.toDoubleOrNull() != null,
-            ) { Text("Buchen") }
+                enabled = selectedBrewerId.isNotBlank() && amountText.toDoubleOrNull() != null
+            ) {
+                Text("Buchen")
+            }
         },
-        dismissButton = { TextButton(onClick = viewModel::dismissManualEntryDialog) { Text("Abbrechen") } },
+        dismissButton = {
+            TextButton(onClick = viewModel::dismissManualEntryDialog) {
+                Text("Abbrechen")
+            }
+        }
     )
 }
 
-
+@Composable
+private fun SpinnerField(
+    value: String,
+    options: List<Pair<String, String?>>,
+    onSelect: (String?) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box {
+        OutlinedButton(
+            onClick = { expanded = true },
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+        ) {
+            Text(
+                value,
+                modifier = Modifier.weight(1f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Icon(Icons.Default.ArrowDropDown, null)
+        }
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            options.forEach { (label, id) ->
+                DropdownMenuItem(
+                    text = { Text(label) },
+                    onClick = {
+                        onSelect(id)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
