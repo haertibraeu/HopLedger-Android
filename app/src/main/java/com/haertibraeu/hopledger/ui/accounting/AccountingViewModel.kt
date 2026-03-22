@@ -21,6 +21,7 @@ data class AccountingUiState(
     val error: String? = null,
     val showManualEntryDialog: Boolean = false,
     val entryToDelete: AccountEntry? = null,
+    val settlementToBook: Settlement? = null,
 )
 
 @HiltViewModel
@@ -92,6 +93,40 @@ class AccountingViewModel @Inject constructor(
             try {
                 api.deleteEntry(entry.id)
                 dismissDeleteDialog()
+                refresh()
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.message) }
+            }
+        }
+    }
+
+    fun confirmBookSettlement(settlement: Settlement) {
+        _uiState.update { it.copy(settlementToBook = settlement) }
+    }
+
+    fun dismissSettlementDialog() {
+        _uiState.update { it.copy(settlementToBook = null) }
+    }
+
+    fun bookSettlement() {
+        val s = _uiState.value.settlementToBook ?: return
+        viewModelScope.launch {
+            try {
+                // Debit the payer (they hand over cash)
+                api.createEntry(EntryRequest(
+                    brewerId = s.from.id,
+                    amount = -s.amount,
+                    type = "settlement",
+                    description = "Ausgleichszahlung an ${s.to.name}",
+                ))
+                // Credit the receiver (they receive cash)
+                api.createEntry(EntryRequest(
+                    brewerId = s.to.id,
+                    amount = s.amount,
+                    type = "settlement",
+                    description = "Ausgleichszahlung von ${s.from.name}",
+                ))
+                dismissSettlementDialog()
                 refresh()
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = e.message) }

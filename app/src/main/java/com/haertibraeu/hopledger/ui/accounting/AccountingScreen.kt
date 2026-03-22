@@ -35,7 +35,10 @@ fun AccountingScreen(viewModel: AccountingViewModel = hiltViewModel()) {
                 Text("🤝 Ausgleich", style = MaterialTheme.typography.titleLarge)
             }
             item {
-                SettlementsCard(settlements = uiState.settlements)
+                SettlementsCard(
+                    settlements = uiState.settlements,
+                    onSettle = viewModel::confirmBookSettlement,
+                )
             }
 
             // ── Per-brewer relative balances ──────────────────────────────
@@ -44,8 +47,7 @@ fun AccountingScreen(viewModel: AccountingViewModel = hiltViewModel()) {
             }
             items(uiState.balances) { balance ->
                 BalanceCard(balance)
-            }
-            if (uiState.balances.isEmpty() && !uiState.isLoading) {
+            }            if (uiState.balances.isEmpty() && !uiState.isLoading) {
                 item { Text("Keine Brauer erfasst", modifier = Modifier.padding(8.dp)) }
             }
 
@@ -119,6 +121,14 @@ fun AccountingScreen(viewModel: AccountingViewModel = hiltViewModel()) {
             onDismiss = viewModel::dismissDeleteDialog,
         )
     }
+
+    uiState.settlementToBook?.let { settlement ->
+        BookSettlementDialog(
+            settlement = settlement,
+            onConfirm = viewModel::bookSettlement,
+            onDismiss = viewModel::dismissSettlementDialog,
+        )
+    }
 }
 
 // ── Entry card (long-press to delete) ─────────────────────────────────────────
@@ -182,7 +192,10 @@ private fun DeleteEntryDialog(entry: AccountEntry, onConfirm: () -> Unit, onDism
 // ── Settlements card ──────────────────────────────────────────────────────────
 
 @Composable
-private fun SettlementsCard(settlements: List<com.haertibraeu.hopledger.data.model.Settlement>) {
+private fun SettlementsCard(
+    settlements: List<com.haertibraeu.hopledger.data.model.Settlement>,
+    onSettle: (com.haertibraeu.hopledger.data.model.Settlement) -> Unit,
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -197,22 +210,36 @@ private fun SettlementsCard(settlements: List<com.haertibraeu.hopledger.data.mod
                     Text("Alle Konten sind ausgeglichen", style = MaterialTheme.typography.bodyMedium)
                 }
             } else {
+                Text(
+                    "Tippe auf eine Zahlung, um sie zu buchen",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer,
+                )
                 settlements.forEach { s ->
-                    Row(
+                    Surface(
+                        onClick = { onSettle(s) },
+                        shape = MaterialTheme.shapes.small,
+                        color = MaterialTheme.colorScheme.errorContainer,
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(
-                            "${s.from.name}  →  ${s.to.name}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            modifier = Modifier.weight(1f),
-                        )
-                        Text(
-                            "${"%.2f".format(s.amount)} CHF",
-                            fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 8.dp, horizontal = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Text(
+                                "${s.from.name}  →  ${s.to.name}",
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.weight(1f),
+                            )
+                            Text(
+                                "${"%.2f".format(s.amount)} CHF",
+                                fontWeight = FontWeight.Bold,
+                                style = MaterialTheme.typography.bodyMedium,
+                            )
+                        }
                     }
                 }
             }
@@ -256,7 +283,32 @@ private fun BalanceCard(balance: Balance) {
     }
 }
 
-// ── Manual entry dialog ───────────────────────────────────────────────────────
+// ── Book settlement dialog ────────────────────────────────────────────────────
+
+@Composable
+private fun BookSettlementDialog(
+    settlement: com.haertibraeu.hopledger.data.model.Settlement,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Ausgleich buchen?") },
+        text = {
+            Text(
+                "${settlement.from.name} zahlt ${"%.2f".format(settlement.amount)} CHF an ${settlement.to.name}.\n\n" +
+                "Dies wird als Ausgleichszahlung gebucht und die Konten entsprechend angepasst."
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) { Text("Buchen") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Abbrechen") }
+        },
+    )
+}
+
 
 @Composable
 private fun ManualEntryDialog(viewModel: AccountingViewModel) {
