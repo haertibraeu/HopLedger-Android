@@ -234,8 +234,8 @@ private fun BalanceCard(balance: Balance) {
                 Text(balance.brewerName, style = MaterialTheme.typography.titleSmall)
                 Text(
                     when {
-                        balance.balance > 0.005 -> "hat mehr eingebracht"
-                        balance.balance < -0.005 -> "schuldet der Gemeinschaft"
+                        balance.balance > 0.005 -> "schuldet der Gemeinschaft"
+                        balance.balance < -0.005 -> "bekommt zurück"
                         else -> "ausgeglichen"
                     },
                     style = MaterialTheme.typography.bodySmall,
@@ -243,12 +243,12 @@ private fun BalanceCard(balance: Balance) {
                 )
             }
             Text(
-                "${"%.2f".format(balance.balance)} CHF",
+                "${"%.2f".format(kotlin.math.abs(balance.balance))} CHF",
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
                 color = when {
-                    balance.balance > 0.005 -> MaterialTheme.colorScheme.primary
-                    balance.balance < -0.005 -> MaterialTheme.colorScheme.error
+                    balance.balance > 0.005 -> MaterialTheme.colorScheme.error
+                    balance.balance < -0.005 -> MaterialTheme.colorScheme.primary
                     else -> MaterialTheme.colorScheme.onSurface
                 },
             )
