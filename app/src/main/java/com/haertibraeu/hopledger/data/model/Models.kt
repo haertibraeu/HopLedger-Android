@@ -56,6 +56,8 @@ data class AccountEntry(
     val amount: Double,
     val type: String,
     val description: String? = null,
+    @SerialName("categoryId") val categoryId: String? = null,
+    val category: Category? = null,
     @SerialName("createdAt") val createdAt: String,
 )
 
@@ -116,7 +118,7 @@ data class ReserveRequest(val reservedFor: String)
 data class BatchFillRequest(val containerIds: List<String>, val beerId: String)
 
 @Serializable
-data class EntryRequest(val brewerId: String, val amount: Double, val type: String = "manual", val description: String? = null)
+data class EntryRequest(val brewerId: String, val amount: Double, val type: String = "manual", val description: String? = null, val categoryId: String? = null)
 
 @Serializable
 data class SellRequest(val containerId: String, val brewerId: String, val customerLocationId: String)
@@ -126,3 +128,9 @@ data class SelfConsumeRequest(val containerId: String, val brewerId: String)
 
 @Serializable
 data class ContainerReturnRequest(val containerId: String, val brewerId: String, val returnLocationId: String)
+
+@Serializable
+data class Category(val id: String, val name: String)
+
+@Serializable
+data class CategoryRequest(val name: String)

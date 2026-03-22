@@ -19,10 +19,12 @@ data class SettingsUiState(
     val beers: List<Beer> = emptyList(),
     val locations: List<Location> = emptyList(),
     val containerTypes: List<ContainerType> = emptyList(),
+    val categories: List<Category> = emptyList(),
     val showAddBrewerDialog: Boolean = false,
     val showAddBeerDialog: Boolean = false,
     val showAddLocationDialog: Boolean = false,
     val showAddContainerTypeDialog: Boolean = false,
+    val showAddCategoryDialog: Boolean = false,
     val error: String? = null,
 )
 
@@ -73,7 +75,8 @@ class SettingsViewModel @Inject constructor(
                 val beers = api.getBeers()
                 val locations = api.getLocations()
                 val types = api.getContainerTypes()
-                _uiState.update { it.copy(brewers = brewers, beers = beers, locations = locations, containerTypes = types, error = null) }
+                val categories = api.getCategories()
+                _uiState.update { it.copy(brewers = brewers, beers = beers, locations = locations, containerTypes = types, categories = categories, error = null) }
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = e.message) }
             }
@@ -85,7 +88,8 @@ class SettingsViewModel @Inject constructor(
     fun showAddBeer() { _uiState.update { it.copy(showAddBeerDialog = true) } }
     fun showAddLocation() { _uiState.update { it.copy(showAddLocationDialog = true) } }
     fun showAddContainerType() { _uiState.update { it.copy(showAddContainerTypeDialog = true) } }
-    fun dismissDialogs() { _uiState.update { it.copy(showAddBrewerDialog = false, showAddBeerDialog = false, showAddLocationDialog = false, showAddContainerTypeDialog = false) } }
+    fun showAddCategory() { _uiState.update { it.copy(showAddCategoryDialog = true) } }
+    fun dismissDialogs() { _uiState.update { it.copy(showAddBrewerDialog = false, showAddBeerDialog = false, showAddLocationDialog = false, showAddContainerTypeDialog = false, showAddCategoryDialog = false) } }
 
     // CRUD operations
     fun addBrewer(name: String) {
@@ -144,6 +148,21 @@ class SettingsViewModel @Inject constructor(
     fun deleteContainerType(id: String) {
         viewModelScope.launch {
             try { api.deleteContainerType(id); refreshAll() }
+            catch (e: Exception) { _uiState.update { it.copy(error = e.message) } }
+        }
+    }
+
+    fun addCategory(name: String) {
+        if (name.isBlank()) return
+        viewModelScope.launch {
+            try { api.createCategory(CategoryRequest(name)); dismissDialogs(); refreshAll() }
+            catch (e: Exception) { _uiState.update { it.copy(error = e.message) } }
+        }
+    }
+
+    fun deleteCategory(id: String) {
+        viewModelScope.launch {
+            try { api.deleteCategory(id); refreshAll() }
             catch (e: Exception) { _uiState.update { it.copy(error = e.message) } }
         }
     }

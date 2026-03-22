@@ -103,6 +103,16 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                 onDelete = { idx -> uiState.containerTypes.getOrNull(idx)?.let { viewModel.deleteContainerType(it.id) } },
             )
         }
+
+        // Categories
+        item {
+            SettingsSection(
+                title = "Kategorien",
+                items = uiState.categories.map { it.name },
+                onAdd = viewModel::showAddCategory,
+                onDelete = { idx -> uiState.categories.getOrNull(idx)?.let { viewModel.deleteCategory(it.id) } },
+            )
+        }
     }
 
     // Dialogs
@@ -110,6 +120,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
     if (uiState.showAddBeerDialog) AddBeerDialog(viewModel)
     if (uiState.showAddLocationDialog) AddLocationDialog(viewModel)
     if (uiState.showAddContainerTypeDialog) AddContainerTypeDialog(viewModel)
+    if (uiState.showAddCategoryDialog) AddCategoryDialog(viewModel)
 }
 
 @Composable
@@ -211,6 +222,18 @@ private fun AddContainerTypeDialog(viewModel: SettingsViewModel) {
                 viewModel.addContainerType(name, externalPrice.toDoubleOrNull() ?: 0.0, internalPrice.toDoubleOrNull() ?: 0.0, depositFee.toDoubleOrNull() ?: 0.0)
             }) { Text("Hinzufügen") }
         },
+        dismissButton = { TextButton(onClick = viewModel::dismissDialogs) { Text("Abbrechen") } },
+    )
+}
+
+@Composable
+private fun AddCategoryDialog(viewModel: SettingsViewModel) {
+    var name by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = viewModel::dismissDialogs,
+        title = { Text("Kategorie hinzufügen") },
+        text = { OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") }) },
+        confirmButton = { TextButton(onClick = { viewModel.addCategory(name); name = "" }) { Text("Hinzufügen") } },
         dismissButton = { TextButton(onClick = viewModel::dismissDialogs) { Text("Abbrechen") } },
     )
 }

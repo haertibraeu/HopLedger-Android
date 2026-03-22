@@ -85,8 +85,20 @@ interface HopLedgerApi {
     ): EntriesResponse
     @POST("api/accounting/entries")
     suspend fun createEntry(@Body body: EntryRequest): AccountEntry
+    @DELETE("api/accounting/entries/{id}")
+    suspend fun deleteEntry(@Path("id") id: String)
     @GET("api/accounting/settlements")
     suspend fun getSettlements(): List<Settlement>
+
+    // Categories
+    @GET("api/categories")
+    suspend fun getCategories(): List<Category>
+    @POST("api/categories")
+    suspend fun createCategory(@Body body: CategoryRequest): Category
+    @PUT("api/categories/{id}")
+    suspend fun updateCategory(@Path("id") id: String, @Body body: CategoryRequest): Category
+    @DELETE("api/categories/{id}")
+    suspend fun deleteCategory(@Path("id") id: String)
 
     // Combined Actions
     @POST("api/actions/sell")

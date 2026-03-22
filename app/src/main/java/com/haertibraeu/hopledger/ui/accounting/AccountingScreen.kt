@@ -1,5 +1,7 @@
 package com.haertibraeu.hopledger.ui.accounting
 
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -14,8 +16,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.haertibraeu.hopledger.data.model.AccountEntry
 import com.haertibraeu.hopledger.data.model.Balance
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AccountingScreen(viewModel: AccountingViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsState()
@@ -34,7 +38,7 @@ fun AccountingScreen(viewModel: AccountingViewModel = hiltViewModel()) {
                 SettlementsCard(settlements = uiState.settlements)
             }
 
-            // ── Per-brewer balances ───────────────────────────────────────
+            // ── Per-brewer relative balances ──────────────────────────────
             item {
                 Text("Kontostände", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp))
             }
@@ -86,25 +90,10 @@ fun AccountingScreen(viewModel: AccountingViewModel = hiltViewModel()) {
             }
 
             items(uiState.entries) { entry ->
-                Card(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(12.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                        ) {
-                            Text(entry.type, style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f))
-                            Text(
-                                "${if (entry.amount >= 0) "+" else ""}${"%.2f".format(entry.amount)} CHF",
-                                fontWeight = FontWeight.Bold,
-                                color = if (entry.amount >= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
-                            )
-                        }
-                        entry.description?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-                        entry.brewer?.let {
-                            Text("${it.name}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                    }
-                }
+                EntryCard(
+                    entry = entry,
+                    onLongPress = { viewModel.confirmDeleteEntry(entry) },
+                )
             }
             if (uiState.entries.isEmpty() && !uiState.isLoading) {
                 item { Text("Keine Buchungen vorhanden", modifier = Modifier.padding(8.dp)) }
@@ -122,6 +111,72 @@ fun AccountingScreen(viewModel: AccountingViewModel = hiltViewModel()) {
     if (uiState.showManualEntryDialog) {
         ManualEntryDialog(viewModel)
     }
+
+    uiState.entryToDelete?.let { entry ->
+        DeleteEntryDialog(
+            entry = entry,
+            onConfirm = viewModel::deleteEntry,
+            onDismiss = viewModel::dismissDeleteDialog,
+        )
+    }
+}
+
+// ── Entry card (long-press to delete) ─────────────────────────────────────────
+
+@OptIn(ExperimentalFoundationApi::class)
+@Composable
+private fun EntryCard(entry: AccountEntry, onLongPress: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .combinedClickable(
+                onClick = {},
+                onLongClick = onLongPress,
+            ),
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        entry.category?.name ?: entry.type,
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                }
+                Text(
+                    "${if (entry.amount >= 0) "+" else ""}${"%.2f".format(entry.amount)} CHF",
+                    fontWeight = FontWeight.Bold,
+                    color = if (entry.amount >= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                )
+            }
+            entry.description?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+            entry.brewer?.let {
+                Text(it.name, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+// ── Delete confirmation dialog ────────────────────────────────────────────────
+
+@Composable
+private fun DeleteEntryDialog(entry: AccountEntry, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Buchung löschen?") },
+        text = {
+            Text("${entry.category?.name ?: entry.type}: ${"%.2f".format(entry.amount)} CHF" +
+                (entry.description?.let { "\n$it" } ?: ""))
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) { Text("Löschen", color = MaterialTheme.colorScheme.error) }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Abbrechen") }
+        },
+    )
 }
 
 // ── Settlements card ──────────────────────────────────────────────────────────
@@ -179,8 +234,8 @@ private fun BalanceCard(balance: Balance) {
                 Text(balance.brewerName, style = MaterialTheme.typography.titleSmall)
                 Text(
                     when {
-                        balance.balance > 0.005 -> "bekommt noch Geld"
-                        balance.balance < -0.005 -> "schuldet Geld"
+                        balance.balance > 0.005 -> "hat mehr eingebracht"
+                        balance.balance < -0.005 -> "schuldet der Gemeinschaft"
                         else -> "ausgeglichen"
                     },
                     style = MaterialTheme.typography.bodySmall,
@@ -207,6 +262,7 @@ private fun BalanceCard(balance: Balance) {
 private fun ManualEntryDialog(viewModel: AccountingViewModel) {
     val uiState by viewModel.uiState.collectAsState()
     var selectedBrewerId by remember { mutableStateOf("") }
+    var selectedCategoryId by remember { mutableStateOf<String?>(null) }
     var amountText by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var isExpense by remember { mutableStateOf(false) }
@@ -214,6 +270,10 @@ private fun ManualEntryDialog(viewModel: AccountingViewModel) {
     // Brewer dropdown
     var brewerExpanded by remember { mutableStateOf(false) }
     val selectedBrewerName = uiState.brewers.find { it.id == selectedBrewerId }?.name ?: "Brauer auswählen…"
+
+    // Category dropdown
+    var categoryExpanded by remember { mutableStateOf(false) }
+    val selectedCategoryName = uiState.categories.find { it.id == selectedCategoryId }?.name ?: "Kategorie auswählen…"
 
     AlertDialog(
         onDismissRequest = viewModel::dismissManualEntryDialog,
@@ -251,6 +311,19 @@ private fun ManualEntryDialog(viewModel: AccountingViewModel) {
                     }
                 }
 
+                // Category picker
+                Box {
+                    OutlinedButton(onClick = { categoryExpanded = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text(selectedCategoryName, modifier = Modifier.weight(1f))
+                    }
+                    DropdownMenu(expanded = categoryExpanded, onDismissRequest = { categoryExpanded = false }) {
+                        DropdownMenuItem(text = { Text("Keine Kategorie") }, onClick = { selectedCategoryId = null; categoryExpanded = false })
+                        uiState.categories.forEach { category ->
+                            DropdownMenuItem(text = { Text(category.name) }, onClick = { selectedCategoryId = category.id; categoryExpanded = false })
+                        }
+                    }
+                }
+
                 OutlinedTextField(
                     value = amountText,
                     onValueChange = { if (it.isEmpty() || it.matches(Regex("\\d*\\.?\\d*"))) amountText = it },
@@ -274,7 +347,7 @@ private fun ManualEntryDialog(viewModel: AccountingViewModel) {
                 onClick = {
                     val amt = amountText.toDoubleOrNull() ?: return@TextButton
                     val signed = if (isExpense) -amt else amt
-                    viewModel.addManualEntry(selectedBrewerId, signed, description, "manual")
+                    viewModel.addManualEntry(selectedBrewerId, signed, description, "manual", selectedCategoryId)
                 },
                 enabled = selectedBrewerId.isNotBlank() && amountText.toDoubleOrNull() != null,
             ) { Text("Buchen") }
