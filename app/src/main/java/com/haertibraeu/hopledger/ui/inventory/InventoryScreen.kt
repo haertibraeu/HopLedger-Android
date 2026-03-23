@@ -37,9 +37,11 @@ fun InventoryScreen(viewModel: InventoryViewModel = hiltViewModel()) {
                 locations = uiState.locations,
                 beers = uiState.beers,
                 filterLocationId = uiState.filterLocationId,
+                filterLocationTypes = uiState.filterLocationTypes,
                 filterBeerId = uiState.filterBeerId,
                 onStatusFilter = viewModel::setStatusFilter,
                 onLocationFilter = viewModel::setLocationFilter,
+                onLocationTypeFilter = viewModel::setLocationTypeFilter,
                 onBeerFilter = viewModel::setBeerFilter,
             )
             if (uiState.isLoading) LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
@@ -102,6 +104,8 @@ fun InventoryScreen(viewModel: InventoryViewModel = hiltViewModel()) {
     }
 }
 
+private val breweryLocationTypes = setOf("brewer", "brewery")
+
 // ── Filter row ───────────────────────────────────────────────────────────────
 
 @Composable
@@ -110,14 +114,15 @@ private fun FilterRow(
     locations: List<com.haertibraeu.hopledger.data.model.Location>,
     beers: List<com.haertibraeu.hopledger.data.model.Beer>,
     filterLocationId: String?,
+    filterLocationTypes: Set<String>,
     filterBeerId: String?,
     onStatusFilter: (StatusFilter) -> Unit,
     onLocationFilter: (String?) -> Unit,
+    onLocationTypeFilter: (Set<String>) -> Unit,
     onBeerFilter: (String?) -> Unit,
 ) {
     val locationTypeOptions = listOf("brewer" to "Brauer", "brewery" to "Brauerei", "customer" to "Kunde", "other" to "Andere")
     val defaultLocationTypes = setOf("brewer", "brewery")
-    var filterLocationTypes by remember { mutableStateOf(defaultLocationTypes) }
     val visibleLocations = locations.filter { loc ->
         val canonical = when (loc.type) { "brewer", "brewery", "customer" -> loc.type; else -> "other" }
         canonical in filterLocationTypes
@@ -181,7 +186,7 @@ private fun FilterRow(
             DropdownMenuItem(
                 leadingIcon = { Text("📍") },
                 text = { Text("Alle Standorte") },
-                onClick = { filterLocationTypes = allTypes; onLocationFilter(null); close() },
+                onClick = { onLocationTypeFilter(allTypes); onLocationFilter(null); close() },
             )
             HorizontalDivider()
             // Type filter section (checkboxes, dropdown stays open on toggle)
@@ -192,7 +197,7 @@ private fun FilterRow(
                     text = { Text(name) },
                     onClick = {
                         val newTypes = if (checked) filterLocationTypes - type else filterLocationTypes + type
-                        filterLocationTypes = newTypes
+                        onLocationTypeFilter(newTypes)
                         val selectedLoc = locations.find { it.id == filterLocationId }
                         if (selectedLoc != null) {
                             val canonical = when (selectedLoc.type) { "brewer", "brewery", "customer" -> selectedLoc.type; else -> "other" }
@@ -227,8 +232,8 @@ private fun FilterRow(
                 onClick = {
                     onStatusFilter(StatusFilter.ALL)
                     onLocationFilter(null)
+                    onLocationTypeFilter(defaultLocationTypes)
                     onBeerFilter(null)
-                    filterLocationTypes = defaultLocationTypes
                 },
                 label = { Text("Zurücksetzen") },
                 leadingIcon = { Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp)) },
@@ -299,14 +304,15 @@ private fun AddContainerDialog(
     onConfirm: (containerTypeId: String, locationId: String, beerId: String?, count: Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    val defaultLocation = locations.firstOrNull { it.type == "brewery" } ?: locations.firstOrNull()
+    val defaultLocation = locations.firstOrNull { it.type == "brewery" } ?: locations.firstOrNull { it.type == "brewer" } ?: locations.firstOrNull()
     var selectedTypeId by remember { mutableStateOf(containerTypes.firstOrNull()?.id ?: "") }
     var selectedLocationId by remember { mutableStateOf(defaultLocation?.id ?: "") }
     var selectedBeerId by remember { mutableStateOf("") }
     var countText by remember { mutableStateOf("1") }
 
+    val breweryLocations = locations.filter { it.type == "brewer" || it.type == "brewery" }
     val selectedTypeName = containerTypes.find { it.id == selectedTypeId }?.name ?: "Auswählen…"
-    val selectedLocationName = locations.find { it.id == selectedLocationId }?.name ?: "Auswählen…"
+    val selectedLocationName = breweryLocations.find { it.id == selectedLocationId }?.name ?: "Auswählen…"
     val selectedBeerName = if (selectedBeerId.isBlank()) "Leer" else beers.find { it.id == selectedBeerId }?.name ?: "Auswählen…"
 
     AlertDialog(
@@ -317,7 +323,7 @@ private fun AddContainerDialog(
                 Text("Gebindetyp", style = MaterialTheme.typography.labelLarge)
                 SpinnerField(selectedTypeName, containerTypes.map { it.name to it.id }) { selectedTypeId = it }
                 Text("Standort", style = MaterialTheme.typography.labelLarge)
-                SpinnerField(selectedLocationName, locations.map { "${it.name} [${it.type}]" to it.id }) { selectedLocationId = it }
+                SpinnerField(selectedLocationName, breweryLocations.map { it.name to it.id }) { selectedLocationId = it }
                 Text("Bier (optional)", style = MaterialTheme.typography.labelLarge)
                 SpinnerField(selectedBeerName, listOf("Leer" to "") + beers.map { it.name to it.id }) { selectedBeerId = it }
                 Text("Anzahl", style = MaterialTheme.typography.labelLarge)
@@ -484,7 +490,7 @@ private fun ContainerActionSheet(
         onDismiss = { showSell = false },
     )
     if (showConsume) PickerDialog("Brauer", brewers.map { it.name to it.id }, { onSelfConsume(ids, it); showConsume = false }, { showConsume = false })
-    if (showReturn) TwoPickerDialog("Rückgabe", "Brauer", brewers.map { it.name to it.id }, "Rückgabeort", locations.map { it.name to it.id }, { b, l -> onContainerReturn(ids, b, l); showReturn = false }, { showReturn = false })
+    if (showReturn) TwoPickerDialog("Rückgabe", "Brauer", brewers.map { it.name to it.id }, "Rückgabeort", locations.filter { it.type in breweryLocationTypes }.map { it.name to it.id }, { b, l -> onContainerReturn(ids, b, l); showReturn = false }, { showReturn = false })
 
     if (showDestroyBeerConfirm) {
         val qLabel = if (quantity == 1) "diesem Gebinde" else "$quantity Gebinden"

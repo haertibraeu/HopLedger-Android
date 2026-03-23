@@ -83,6 +83,9 @@ data class SettlementParty(val id: String, val name: String)
 @Serializable
 data class ActionResult(val container: Container, val accountEntry: AccountEntry)
 
+@Serializable
+data class BatchActionResult(val containers: List<Container>, val accountEntry: AccountEntry)
+
 // --- Request Bodies ---
 @Serializable
 data class BrewerRequest(val name: String)
@@ -122,6 +125,9 @@ data class EntryRequest(val brewerId: String, val amount: Double, val type: Stri
 
 @Serializable
 data class SellRequest(val containerId: String, val brewerId: String, val customerLocationId: String, val description: String? = null)
+
+@Serializable
+data class BatchSellRequest(val containerIds: List<String>, val brewerId: String, val customerLocationId: String, val description: String? = null)
 
 @Serializable
 data class SelfConsumeRequest(val containerId: String, val brewerId: String, val description: String? = null)

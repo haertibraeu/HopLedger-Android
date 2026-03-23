@@ -7,6 +7,8 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -16,6 +18,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.haertibraeu.hopledger.data.model.ContainerType
+import com.haertibraeu.hopledger.data.model.Location
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 
@@ -28,6 +32,9 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
     var brauerExpanded by remember { mutableStateOf(false) }
     var kategorienExpanded by remember { mutableStateOf(false) }
     var standorteExpanded by remember { mutableStateOf(false) }
+
+    // Delete confirmation state: holds a pair of (message, onConfirm)
+    var pendingDelete by remember { mutableStateOf<Pair<String, () -> Unit>?>(null) }
 
     val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
         result.contents?.let { viewModel.applyQrPayload(it) }
@@ -111,11 +118,13 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
         }
         item {
             AnimatedVisibility(visible = gebindetypenExpanded) {
-                SettingsSection(
-                    title = "Gebindetypen",
-                    items = uiState.containerTypes.map { "${it.name} (${it.externalPrice}/${it.internalPrice} CHF, Pfand: ${it.depositFee} CHF)" },
+                ContainerTypesSection(
+                    containerTypes = uiState.containerTypes,
                     onAdd = viewModel::showAddContainerType,
-                    onDelete = { idx -> uiState.containerTypes.getOrNull(idx)?.let { viewModel.deleteContainerType(it.id) } },
+                    onEdit = { viewModel.showEditContainerType(it) },
+                    onDelete = { ct ->
+                        pendingDelete = "Gebindetyp \"${ct.name}\" löschen?\n\nKann nur gelöscht werden, wenn keine Gebinde dieses Typs mehr existieren." to { viewModel.deleteContainerType(ct.id) }
+                    },
                 )
             }
         }
@@ -132,7 +141,11 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                     title = "Biere",
                     items = uiState.beers.map { "${it.name}${it.style?.let { s -> " ($s)" } ?: ""}" },
                     onAdd = viewModel::showAddBeer,
-                    onDelete = { idx -> uiState.beers.getOrNull(idx)?.let { viewModel.deleteBeer(it.id) } },
+                    onDelete = { idx ->
+                        uiState.beers.getOrNull(idx)?.let { beer ->
+                            pendingDelete = "Bier \"${beer.name}\" löschen?\n\nDas Bier wird aus allen Gebinden entfernt, die es enthalten." to { viewModel.deleteBeer(beer.id) }
+                        }
+                    },
                 )
             }
         }
@@ -149,7 +162,11 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                     title = "Brauer",
                     items = uiState.brewers.map { it.name },
                     onAdd = viewModel::showAddBrewer,
-                    onDelete = { idx -> uiState.brewers.getOrNull(idx)?.let { viewModel.deleteBrewer(it.id) } },
+                    onDelete = { idx ->
+                        uiState.brewers.getOrNull(idx)?.let { brewer ->
+                            pendingDelete = "Brauer \"${brewer.name}\" löschen?\n\nAlle Buchungen und Biere bleiben erhalten, aber der Brauer kann danach nicht mehr verwendet werden." to { viewModel.deleteBrewer(brewer.id) }
+                        }
+                    },
                 )
             }
         }
@@ -166,7 +183,11 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                     title = "Finanzkategorien",
                     items = uiState.categories.map { "${if (it.type == "income") "💰" else "💸"} ${it.name}" },
                     onAdd = viewModel::showAddCategory,
-                    onDelete = { idx -> uiState.categories.getOrNull(idx)?.let { viewModel.deleteCategory(it.id) } },
+                    onDelete = { idx ->
+                        uiState.categories.getOrNull(idx)?.let { cat ->
+                            pendingDelete = "Kategorie \"${cat.name}\" löschen?\n\nBestehende Buchungen behalten ihre Kategorie — nur neue Buchungen können sie nicht mehr verwenden." to { viewModel.deleteCategory(cat.id) }
+                        }
+                    },
                 )
             }
         }
@@ -183,10 +204,30 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                     title = "Standorte",
                     items = uiState.locations.map { "${it.name} · ${locationTypeLabel(it.type)}" },
                     onAdd = viewModel::showAddLocation,
-                    onDelete = { idx -> uiState.locations.getOrNull(idx)?.let { viewModel.deleteLocation(it.id) } },
+                    onDelete = { idx ->
+                        uiState.locations.getOrNull(idx)?.let { loc ->
+                            pendingDelete = "Standort \"${loc.name}\" löschen?\n\nAlle Gebinde an diesem Standort müssen zuerst verschoben werden." to { viewModel.deleteLocation(loc.id) }
+                        }
+                    },
                 )
             }
         }
+    }
+
+    // Delete confirmation dialog
+    pendingDelete?.let { (message, onConfirm) ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("Löschen bestätigen") },
+            text = { Text(message) },
+            confirmButton = {
+                TextButton(
+                    onClick = { onConfirm(); pendingDelete = null },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                ) { Text("Löschen") }
+            },
+            dismissButton = { TextButton(onClick = { pendingDelete = null }) { Text("Abbrechen") } },
+        )
     }
 
     // Dialogs
@@ -195,6 +236,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
     if (uiState.showAddLocationDialog) AddLocationDialog(viewModel)
     if (uiState.showAddContainerTypeDialog) AddContainerTypeDialog(viewModel)
     if (uiState.showAddCategoryDialog) AddCategoryDialog(viewModel)
+    uiState.editingContainerType?.let { EditContainerTypeDialog(it, viewModel) }
     if (uiState.showQrDialog) QrDialog(url = uiState.backendUrl, apiKey = uiState.apiKey, onDismiss = viewModel::dismissQr)
 }
 
@@ -220,6 +262,84 @@ private fun CollapsibleSectionHeader(title: String, expanded: Boolean, onToggle:
             )
         }
     }
+}
+
+@Composable
+private fun ContainerTypesSection(
+    containerTypes: List<ContainerType>,
+    onAdd: () -> Unit,
+    onEdit: (ContainerType) -> Unit,
+    onDelete: (ContainerType) -> Unit,
+) {
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Gebindetypen", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            IconButton(onClick = onAdd) { Icon(Icons.Default.Add, "Hinzufügen") }
+        }
+        containerTypes.forEach { ct ->
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(ct.name)
+                    Text(
+                        "Verkauf: ${ct.externalPrice} CHF · Eigenverbrauch: ${ct.internalPrice} CHF · Pfand: ${ct.depositFee} CHF",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                IconButton(onClick = { onEdit(ct) }) {
+                    Icon(Icons.Default.Edit, "Bearbeiten", tint = MaterialTheme.colorScheme.primary)
+                }
+                IconButton(onClick = { onDelete(ct) }) {
+                    Icon(Icons.Default.Delete, "Löschen", tint = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+        if (containerTypes.isEmpty()) {
+            Text("Keine Einträge", color = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.padding(8.dp))
+        }
+    }
+}
+
+@Composable
+private fun EditContainerTypeDialog(ct: ContainerType, viewModel: SettingsViewModel) {
+    var name by remember(ct.id) { mutableStateOf(ct.name) }
+    var externalPrice by remember(ct.id) { mutableStateOf(ct.externalPrice.toString()) }
+    var internalPrice by remember(ct.id) { mutableStateOf(ct.internalPrice.toString()) }
+    var depositFee by remember(ct.id) { mutableStateOf(ct.depositFee.toString()) }
+    AlertDialog(
+        onDismissRequest = viewModel::dismissDialogs,
+        title = { Text("Gebindetyp bearbeiten") },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = externalPrice, onValueChange = { externalPrice = it }, label = { Text("Verkaufspreis (CHF)") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = internalPrice, onValueChange = { internalPrice = it }, label = { Text("Eigenverbrauch (CHF)") }, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(value = depositFee, onValueChange = { depositFee = it }, label = { Text("Pfand (CHF)") }, modifier = Modifier.fillMaxWidth())
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    viewModel.updateContainerType(
+                        ct.id, name,
+                        externalPrice.toDoubleOrNull() ?: ct.externalPrice,
+                        internalPrice.toDoubleOrNull() ?: ct.internalPrice,
+                        depositFee.toDoubleOrNull() ?: ct.depositFee,
+                    )
+                },
+                enabled = name.isNotBlank(),
+            ) { Text("Speichern") }
+        },
+        dismissButton = { TextButton(onClick = viewModel::dismissDialogs) { Text("Abbrechen") } },
+    )
 }
 
 @Composable

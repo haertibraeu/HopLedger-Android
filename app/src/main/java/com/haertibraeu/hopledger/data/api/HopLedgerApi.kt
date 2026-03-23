@@ -103,6 +103,8 @@ interface HopLedgerApi {
     // Combined Actions
     @POST("api/actions/sell")
     suspend fun sell(@Body body: SellRequest): ActionResult
+    @POST("api/actions/batch-sell")
+    suspend fun batchSell(@Body body: BatchSellRequest): BatchActionResult
     @POST("api/actions/self-consume")
     suspend fun selfConsume(@Body body: SelfConsumeRequest): ActionResult
     @POST("api/actions/container-return")

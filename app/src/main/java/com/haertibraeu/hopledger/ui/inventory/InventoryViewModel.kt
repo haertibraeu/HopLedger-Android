@@ -35,6 +35,7 @@ data class InventoryUiState(
     val error: String? = null,
     val statusFilter: StatusFilter = StatusFilter.ALL,
     val filterLocationId: String? = null,
+    val filterLocationTypes: Set<String> = setOf("brewer", "brewery"),
     val filterBeerId: String? = null,
     val selectedContainer: Container? = null,
     val selectedGroup: ContainerGroup? = null,
@@ -75,9 +76,18 @@ class InventoryViewModel @Inject constructor(
                 val beers = api.getBeers()
                 val locations = api.getLocations()
                 val types = api.getContainerTypes()
+                // When no specific location is selected, filter groups by the active location types
+                val groups = groupContainers(containers).let { all ->
+                    if (s.filterLocationId != null) all
+                    else all.filter { group ->
+                        val locType = group.location?.type ?: "other"
+                        val canonical = when (locType) { "brewer", "brewery", "customer" -> locType; else -> "other" }
+                        canonical in s.filterLocationTypes
+                    }
+                }
                 _uiState.update {
                     it.copy(
-                        groups = groupContainers(containers),
+                        groups = groups,
                         brewers = brewers,
                         beers = beers,
                         locations = locations,
@@ -117,6 +127,7 @@ class InventoryViewModel @Inject constructor(
 
     fun setStatusFilter(f: StatusFilter) { _uiState.update { it.copy(statusFilter = f) }; refresh() }
     fun setLocationFilter(id: String?) { _uiState.update { it.copy(filterLocationId = id) }; refresh() }
+    fun setLocationTypeFilter(types: Set<String>) { _uiState.update { it.copy(filterLocationTypes = types) }; refresh() }
     fun setBeerFilter(id: String?) { _uiState.update { it.copy(filterBeerId = id) }; refresh() }
 
     fun selectGroup(group: ContainerGroup) {
@@ -147,7 +158,7 @@ class InventoryViewModel @Inject constructor(
         viewModelScope.launch {
             sync.startSync()
             try { action(); sync.endSync(); refresh() }
-            catch (e: Exception) { _uiState.update { it.copy(error = e.message) }; sync.endSync(e.message) }
+            catch (e: Exception) { _uiState.update { it.copy(error = e.message) }; sync.endSync() }
         }
     }
 
@@ -169,7 +180,7 @@ class InventoryViewModel @Inject constructor(
     fun batchReserve(ids: List<String>, customerName: String) = containerAction { ids.forEach { api.reserveContainer(it, ReserveRequest(customerName)) }; dismissSheet() }
     fun batchUnreserve(ids: List<String>) = containerAction { ids.forEach { api.unreserveContainer(it) }; dismissSheet() }
 
-    /** Find-or-create a customer location named [customerName], then sell all [ids] to it. */
+    /** Find-or-create a customer location named [customerName], then sell all [ids] in a single transaction. */
     fun batchSellWithCustomer(ids: List<String>, brewerId: String, customerName: String) = containerAction {
         val s = _uiState.value
         val existing = s.locations.firstOrNull {
@@ -180,7 +191,7 @@ class InventoryViewModel @Inject constructor(
         val prefix = descriptionPrefix(group, ids.size)
         val brewerName = s.brewers.find { it.id == brewerId }?.name
         val desc = "$prefix an $customerName verkauft${brewerName?.let { " ($it)" } ?: ""}"
-        ids.forEach { api.sell(SellRequest(it, brewerId, locationId, desc)) }
+        api.batchSell(BatchSellRequest(ids, brewerId, locationId, desc))
         dismissSheet()
     }
 
