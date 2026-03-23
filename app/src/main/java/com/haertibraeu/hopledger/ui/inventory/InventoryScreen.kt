@@ -115,7 +115,16 @@ private fun FilterRow(
     onLocationFilter: (String?) -> Unit,
     onBeerFilter: (String?) -> Unit,
 ) {
-    val anyActive = statusFilter != StatusFilter.ALL || filterLocationId != null || filterBeerId != null
+    val locationTypeOptions = listOf("brewer" to "Brauer", "brewery" to "Brauerei", "customer" to "Kunde", "other" to "Andere")
+    val defaultLocationTypes = setOf("brewer", "brewery")
+    var filterLocationTypes by remember { mutableStateOf(defaultLocationTypes) }
+    val visibleLocations = locations.filter { loc ->
+        val canonical = when (loc.type) { "brewer", "brewery", "customer" -> loc.type; else -> "other" }
+        canonical in filterLocationTypes
+    }
+    val typeIsDefault = filterLocationTypes == defaultLocationTypes
+
+    val anyActive = statusFilter != StatusFilter.ALL || filterLocationId != null || filterBeerId != null || !typeIsDefault
 
     val statusEmoji = when (statusFilter) {
         StatusFilter.ALL -> "☰"
@@ -161,14 +170,40 @@ private fun FilterRow(
             }
         }
 
-        // Location filter chip
+        // Location filter chip — type checkboxes at top, then individual locations below
         FilterDropdownChip(
             emoji = "📍",
             label = locationName ?: "Standort",
-            selected = filterLocationId != null,
+            selected = filterLocationId != null || !typeIsDefault,
         ) { close ->
-            DropdownMenuItem(leadingIcon = { Text("📍") }, text = { Text("Alle Standorte") }, onClick = { onLocationFilter(null); close() })
-            locations.forEach { loc ->
+            // "Alle Standorte" — checks all types and clears location filter
+            val allTypes = locationTypeOptions.map { it.first }.toSet()
+            DropdownMenuItem(
+                leadingIcon = { Text("📍") },
+                text = { Text("Alle Standorte") },
+                onClick = { filterLocationTypes = allTypes; onLocationFilter(null); close() },
+            )
+            HorizontalDivider()
+            // Type filter section (checkboxes, dropdown stays open on toggle)
+            locationTypeOptions.forEach { (type, name) ->
+                val checked = type in filterLocationTypes
+                DropdownMenuItem(
+                    leadingIcon = { Checkbox(checked = checked, onCheckedChange = null) },
+                    text = { Text(name) },
+                    onClick = {
+                        val newTypes = if (checked) filterLocationTypes - type else filterLocationTypes + type
+                        filterLocationTypes = newTypes
+                        val selectedLoc = locations.find { it.id == filterLocationId }
+                        if (selectedLoc != null) {
+                            val canonical = when (selectedLoc.type) { "brewer", "brewery", "customer" -> selectedLoc.type; else -> "other" }
+                            if (canonical !in newTypes) onLocationFilter(null)
+                        }
+                    },
+                )
+            }
+            HorizontalDivider()
+            // Individual locations filtered by selected types
+            visibleLocations.forEach { loc ->
                 DropdownMenuItem(leadingIcon = { Text("📍") }, text = { Text(loc.name) }, onClick = { onLocationFilter(loc.id); close() })
             }
         }
@@ -193,6 +228,7 @@ private fun FilterRow(
                     onStatusFilter(StatusFilter.ALL)
                     onLocationFilter(null)
                     onBeerFilter(null)
+                    filterLocationTypes = defaultLocationTypes
                 },
                 label = { Text("Zurücksetzen") },
                 leadingIcon = { Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp)) },
@@ -247,7 +283,7 @@ private fun ContainerGroupCard(group: ContainerGroup, onClick: () -> Unit) {
             }
             Spacer(Modifier.height(4.dp))
             Text(if (group.beer == null) "🫙 Leer" else "🍺 ${group.beer.name}", style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("📍 ${group.location?.name ?: "?"}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text("📍 ${group.location?.name ?: "?"}", style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (isReserved) Text("📋 ${group.reservedFor}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
