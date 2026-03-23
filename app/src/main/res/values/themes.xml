@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <style name="Theme.HopLedger" parent="android:Theme.Material.Light.NoActionBar" />
+    <style name="Theme.HopLedger.Splash" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/hop_green</item>
+        <item name="android:statusBarColor">@color/hop_green</item>
+        <item name="android:navigationBarColor">@color/hop_green</item>
+    </style>
 </resources>

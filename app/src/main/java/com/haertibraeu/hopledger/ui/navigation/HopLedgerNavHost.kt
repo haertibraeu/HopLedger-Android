@@ -117,7 +117,7 @@ private fun SyncIndicator(status: SyncStatus, onRefresh: () -> Unit) {
             Icon(
                 Icons.Default.CloudDone, contentDescription = "Synchronisiert – tippen zum Aktualisieren",
                 modifier = Modifier.size(20.dp),
-                tint = Color(0xFF4CAF50),
+                tint = Color(0xFF527455),
             )
         }
         is SyncStatus.Error -> IconButton(onClick = onRefresh) {
