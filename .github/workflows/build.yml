@@ -58,8 +58,8 @@ jobs:
               -Pandroid.injected.signing.key.password="$KEY_PASSWORD" \
               --no-daemon
           else
-            echo "No keystore configured — building unsigned release APK"
-            ./gradlew assembleRelease --no-daemon
+            echo "No keystore — building debug APK (signed with debug key, installable)"
+            ./gradlew assembleDebug --no-daemon
           fi
 
       - name: Upload debug APK artifact (PRs)
@@ -85,4 +85,4 @@ jobs:
           prerelease: ${{ contains(steps.tag.outputs.TAG, '-') }}
           generate_release_notes: true
           files: |
-            app/build/outputs/apk/release/*.apk
+            app/build/outputs/apk/**/*.apk
