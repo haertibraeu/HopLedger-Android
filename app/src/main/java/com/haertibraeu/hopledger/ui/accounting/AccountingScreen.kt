@@ -140,6 +140,19 @@ fun AccountingScreen(viewModel: AccountingViewModel = hiltViewModel()) {
     }
 }
 
+// ── Entry type display labels ─────────────────────────────────────────────────
+
+private fun entryTypeLabel(type: String) = when (type) {
+    "sale"             -> "Verkauf"
+    "container_return" -> "Pfand"
+    "self_consume"     -> "Eigenverbrauch"
+    "settlement"       -> "Ausgleich"
+    "manual"           -> "Manuell"
+    "fill"             -> "Abfüllung"
+    "batch_fill"       -> "Abfüllung"
+    else               -> type.replace('_', ' ').replaceFirstChar { it.uppercase() }
+}
+
 // ── Entry card (long-press to delete) ─────────────────────────────────────────
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -165,7 +178,7 @@ private fun EntryCard(entry: AccountEntry, onLongPress: () -> Unit) {
                         else -> if (entry.amount >= 0) "💰" else "💸"
                     }
                     Text(
-                        "$categoryEmoji ${entry.category?.name ?: entry.type}",
+                        "$categoryEmoji ${entry.category?.name ?: entryTypeLabel(entry.type)}",
                         style = MaterialTheme.typography.labelMedium,
                     )
                 }
@@ -191,7 +204,7 @@ private fun DeleteEntryDialog(entry: AccountEntry, onConfirm: () -> Unit, onDism
         onDismissRequest = onDismiss,
         title = { Text("Buchung löschen?") },
         text = {
-            Text("${entry.category?.name ?: entry.type}: ${"%.2f".format(entry.amount)} CHF" +
+            Text("${entry.category?.name ?: entryTypeLabel(entry.type)}: ${"%.2f".format(entry.amount)} CHF" +
                 (entry.description?.let { "\n$it" } ?: ""))
         },
         confirmButton = {
@@ -340,11 +353,6 @@ private fun ManualEntryDialog(viewModel: AccountingViewModel) {
 
     // Auto-apply sign when category changes
     val selectedCategory = uiState.categories.find { it.id == selectedCategoryId }
-    LaunchedEffect(selectedCategoryId) {
-        val amount = amountText.toDoubleOrNull() ?: return@LaunchedEffect
-        val absAmount = kotlin.math.abs(amount)
-        amountText = if (selectedCategory?.type == "expense") "-$absAmount" else "$absAmount"
-    }
 
     val selectedBrewerName = uiState.brewers.find { it.id == selectedBrewerId }?.name ?: "Auswählen…"
     val selectedCategoryName = selectedCategory?.let {
@@ -376,15 +384,16 @@ private fun ManualEntryDialog(viewModel: AccountingViewModel) {
                 )
 
                 Text("Betrag (CHF)", style = MaterialTheme.typography.labelLarge)
+                val isExpense = selectedCategory?.type == "expense"
                 OutlinedTextField(
                     value = amountText,
-                    onValueChange = { amountText = it.replace(',', '.') },
-                    label = {
-                        Text(when (selectedCategory?.type) {
-                            "expense" -> "Negativer Betrag (z.B. -15.50)"
-                            "income" -> "Positiver Betrag (z.B. 15.50)"
-                            else -> "z.B. 15.50 oder -10.00"
-                        })
+                    onValueChange = { amountText = it.replace(',', '.').trimStart('-') },
+                    label = { Text("z.B. 15.50") },
+                    prefix = {
+                        Text(
+                            if (isExpense) "−" else "+",
+                            color = if (isExpense) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                        )
                     },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
@@ -403,8 +412,9 @@ private fun ManualEntryDialog(viewModel: AccountingViewModel) {
         confirmButton = {
             TextButton(
                 onClick = {
-                    val amount = amountText.toDoubleOrNull() ?: 0.0
-                    viewModel.addManualEntry(selectedBrewerId, amount, description, "manual", selectedCategoryId)
+                    val absAmount = amountText.toDoubleOrNull()?.let { kotlin.math.abs(it) } ?: 0.0
+                    val finalAmount = if (selectedCategory?.type == "expense") -absAmount else absAmount
+                    viewModel.addManualEntry(selectedBrewerId, finalAmount, description, "manual", selectedCategoryId)
                 },
                 enabled = selectedBrewerId.isNotBlank() && amountText.toDoubleOrNull() != null
             ) {
