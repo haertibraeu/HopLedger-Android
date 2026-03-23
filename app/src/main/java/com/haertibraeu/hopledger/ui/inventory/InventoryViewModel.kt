@@ -171,14 +171,44 @@ class InventoryViewModel @Inject constructor(
 
     /** Find-or-create a customer location named [customerName], then sell all [ids] to it. */
     fun batchSellWithCustomer(ids: List<String>, brewerId: String, customerName: String) = containerAction {
-        val existing = _uiState.value.locations.firstOrNull {
+        val s = _uiState.value
+        val existing = s.locations.firstOrNull {
             it.type == "customer" && it.name.equals(customerName, ignoreCase = true)
         }
         val locationId = existing?.id ?: api.createLocation(LocationRequest(customerName, "customer")).id
-        ids.forEach { api.sell(SellRequest(it, brewerId, locationId)) }
+        val group = s.selectedGroup
+        val prefix = descriptionPrefix(group, ids.size)
+        val brewerName = s.brewers.find { it.id == brewerId }?.name
+        val desc = "$prefix an $customerName verkauft${brewerName?.let { " ($it)" } ?: ""}"
+        ids.forEach { api.sell(SellRequest(it, brewerId, locationId, desc)) }
         dismissSheet()
     }
 
-    fun batchSelfConsume(ids: List<String>, brewerId: String) = containerAction { ids.forEach { api.selfConsume(SelfConsumeRequest(it, brewerId)) }; dismissSheet() }
-    fun batchReturn(ids: List<String>, brewerId: String, returnLocationId: String) = containerAction { ids.forEach { api.containerReturn(ContainerReturnRequest(it, brewerId, returnLocationId)) }; dismissSheet() }
+    fun batchSelfConsume(ids: List<String>, brewerId: String) = containerAction {
+        val s = _uiState.value
+        val group = s.selectedGroup
+        val prefix = descriptionPrefix(group, ids.size)
+        val brewerName = s.brewers.find { it.id == brewerId }?.name
+        val desc = "$prefix – Eigenverbrauch${brewerName?.let { " von $it" } ?: ""}"
+        ids.forEach { api.selfConsume(SelfConsumeRequest(it, brewerId, desc)) }
+        dismissSheet()
+    }
+
+    fun batchReturn(ids: List<String>, brewerId: String, returnLocationId: String) = containerAction {
+        val s = _uiState.value
+        val group = s.selectedGroup
+        val prefix = descriptionPrefix(group, ids.size)
+        val brewerName = s.brewers.find { it.id == brewerId }?.name
+        val locationName = s.locations.find { it.id == returnLocationId }?.name
+        val desc = "$prefix – Pfandrückgabe${brewerName?.let { " von $it" } ?: ""}${locationName?.let { " → $it" } ?: ""}"
+        ids.forEach { api.containerReturn(ContainerReturnRequest(it, brewerId, returnLocationId, desc)) }
+        dismissSheet()
+    }
+
+    private fun descriptionPrefix(group: ContainerGroup?, count: Int): String {
+        val typeName = group?.containerType?.name ?: "Gebinde"
+        val beerName = group?.beer?.name
+        val qty = if (count > 1) "${count}× " else ""
+        return if (beerName != null) "$qty$typeName ($beerName)" else "$qty$typeName"
+    }
 }

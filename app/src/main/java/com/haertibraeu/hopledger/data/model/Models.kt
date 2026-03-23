@@ -121,13 +121,13 @@ data class BatchFillRequest(val containerIds: List<String>, val beerId: String)
 data class EntryRequest(val brewerId: String, val amount: Double, val type: String = "manual", val description: String? = null, val categoryId: String? = null)
 
 @Serializable
-data class SellRequest(val containerId: String, val brewerId: String, val customerLocationId: String)
+data class SellRequest(val containerId: String, val brewerId: String, val customerLocationId: String, val description: String? = null)
 
 @Serializable
-data class SelfConsumeRequest(val containerId: String, val brewerId: String)
+data class SelfConsumeRequest(val containerId: String, val brewerId: String, val description: String? = null)
 
 @Serializable
-data class ContainerReturnRequest(val containerId: String, val brewerId: String, val returnLocationId: String)
+data class ContainerReturnRequest(val containerId: String, val brewerId: String, val returnLocationId: String, val description: String? = null)
 
 @Serializable
 data class Category(val id: String, val name: String, val type: String = "income")
