@@ -159,8 +159,13 @@ private fun EntryCard(entry: AccountEntry, onLongPress: () -> Unit) {
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
                 Column(modifier = Modifier.weight(1f)) {
+                    val categoryEmoji = when (entry.category?.type) {
+                        "income" -> "💰"
+                        "expense" -> "💸"
+                        else -> if (entry.amount >= 0) "💰" else "💸"
+                    }
                     Text(
-                        entry.category?.name ?: entry.type,
+                        "$categoryEmoji ${entry.category?.name ?: entry.type}",
                         style = MaterialTheme.typography.labelMedium,
                     )
                 }
@@ -333,8 +338,18 @@ private fun ManualEntryDialog(viewModel: AccountingViewModel) {
         selectedBrewerId = uiState.brewers.first().id
     }
 
+    // Auto-apply sign when category changes
+    val selectedCategory = uiState.categories.find { it.id == selectedCategoryId }
+    LaunchedEffect(selectedCategoryId) {
+        val amount = amountText.toDoubleOrNull() ?: return@LaunchedEffect
+        val absAmount = kotlin.math.abs(amount)
+        amountText = if (selectedCategory?.type == "expense") "-$absAmount" else "$absAmount"
+    }
+
     val selectedBrewerName = uiState.brewers.find { it.id == selectedBrewerId }?.name ?: "Auswählen…"
-    val selectedCategoryName = uiState.categories.find { it.id == selectedCategoryId }?.name ?: "Keine Kategorie"
+    val selectedCategoryName = selectedCategory?.let {
+        "${if (it.type == "income") "💰" else "💸"} ${it.name}"
+    } ?: "Keine Kategorie"
 
     AlertDialog(
         onDismissRequest = viewModel::dismissManualEntryDialog,
@@ -351,11 +366,26 @@ private fun ManualEntryDialog(viewModel: AccountingViewModel) {
                     onSelect = { selectedBrewerId = it ?: "" }
                 )
 
+                Text("Kategorie", style = MaterialTheme.typography.labelLarge)
+                SpinnerField(
+                    value = selectedCategoryName,
+                    options = listOf("Keine Kategorie" to null) + uiState.categories.map {
+                        "${if (it.type == "income") "💰" else "💸"} ${it.name}" to it.id
+                    },
+                    onSelect = { selectedCategoryId = it }
+                )
+
                 Text("Betrag (CHF)", style = MaterialTheme.typography.labelLarge)
                 OutlinedTextField(
                     value = amountText,
                     onValueChange = { amountText = it.replace(',', '.') },
-                    label = { Text("z.B. 15.50 oder -10.00") },
+                    label = {
+                        Text(when (selectedCategory?.type) {
+                            "expense" -> "Negativer Betrag (z.B. -15.50)"
+                            "income" -> "Positiver Betrag (z.B. 15.50)"
+                            else -> "z.B. 15.50 oder -10.00"
+                        })
+                    },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -367,13 +397,6 @@ private fun ManualEntryDialog(viewModel: AccountingViewModel) {
                     label = { Text("Zweck (optional)") },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
-                )
-
-                Text("Kategorie", style = MaterialTheme.typography.labelLarge)
-                SpinnerField(
-                    value = selectedCategoryName,
-                    options = listOf("Keine Kategorie" to null) + uiState.categories.map { it.name to it.id },
-                    onSelect = { selectedCategoryId = it }
                 )
             }
         },

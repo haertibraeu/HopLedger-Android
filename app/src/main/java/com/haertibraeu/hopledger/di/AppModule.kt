@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
+import com.haertibraeu.hopledger.data.api.ApiKeyInterceptor
+import com.haertibraeu.hopledger.data.api.DynamicBaseUrlInterceptor
 import com.haertibraeu.hopledger.data.api.HopLedgerApi
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import dagger.Module
@@ -36,8 +38,13 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideOkHttpClient(): OkHttpClient =
+    fun provideOkHttpClient(
+        baseUrlInterceptor: DynamicBaseUrlInterceptor,
+        apiKeyInterceptor: ApiKeyInterceptor,
+    ): OkHttpClient =
         OkHttpClient.Builder()
+            .addInterceptor(baseUrlInterceptor)
+            .addInterceptor(apiKeyInterceptor)
             .addInterceptor(HttpLoggingInterceptor().apply {
                 level = HttpLoggingInterceptor.Level.BODY
             })
@@ -47,7 +54,7 @@ object AppModule {
     @Singleton
     fun provideRetrofit(client: OkHttpClient): Retrofit =
         Retrofit.Builder()
-            .baseUrl("http://10.0.2.2:3000/") // Default: Android emulator → host localhost
+            .baseUrl("http://localhost/") // Placeholder, replaced by DynamicBaseUrlInterceptor
             .client(client)
             .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
             .build()

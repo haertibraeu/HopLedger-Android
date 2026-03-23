@@ -15,8 +15,8 @@ android {
         applicationId = "com.haertibraeu.hopledger"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = 2
+        versionName = "1.1.0"
     }
 
     buildTypes {
@@ -70,6 +70,10 @@ dependencies {
 
     // Core
     implementation("androidx.core:core-ktx:1.15.0")
+
+    // ZXing – QR code generation & scanning
+    implementation("com.google.zxing:core:3.5.3")
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0") { isTransitive = false }
 
     // Debug
     debugImplementation("androidx.compose.ui:ui-tooling")

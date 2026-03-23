@@ -168,7 +168,17 @@ class InventoryViewModel @Inject constructor(
     fun batchDelete(ids: List<String>) = containerAction { ids.forEach { api.deleteContainer(it) }; dismissSheet() }
     fun batchReserve(ids: List<String>, customerName: String) = containerAction { ids.forEach { api.reserveContainer(it, ReserveRequest(customerName)) }; dismissSheet() }
     fun batchUnreserve(ids: List<String>) = containerAction { ids.forEach { api.unreserveContainer(it) }; dismissSheet() }
-    fun batchSell(ids: List<String>, brewerId: String, customerLocationId: String) = containerAction { ids.forEach { api.sell(SellRequest(it, brewerId, customerLocationId)) }; dismissSheet() }
+
+    /** Find-or-create a customer location named [customerName], then sell all [ids] to it. */
+    fun batchSellWithCustomer(ids: List<String>, brewerId: String, customerName: String) = containerAction {
+        val existing = _uiState.value.locations.firstOrNull {
+            it.type == "customer" && it.name.equals(customerName, ignoreCase = true)
+        }
+        val locationId = existing?.id ?: api.createLocation(LocationRequest(customerName, "customer")).id
+        ids.forEach { api.sell(SellRequest(it, brewerId, locationId)) }
+        dismissSheet()
+    }
+
     fun batchSelfConsume(ids: List<String>, brewerId: String) = containerAction { ids.forEach { api.selfConsume(SelfConsumeRequest(it, brewerId)) }; dismissSheet() }
     fun batchReturn(ids: List<String>, brewerId: String, returnLocationId: String) = containerAction { ids.forEach { api.containerReturn(ContainerReturnRequest(it, brewerId, returnLocationId)) }; dismissSheet() }
 }

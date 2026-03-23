@@ -5,13 +5,14 @@ import androidx.lifecycle.viewModelScope
 import com.haertibraeu.hopledger.data.api.HopLedgerApi
 import com.haertibraeu.hopledger.data.model.*
 import com.haertibraeu.hopledger.data.repository.SettingsRepository
+import com.haertibraeu.hopledger.data.repository.SyncRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class SettingsUiState(
-    val backendUrl: String = "http://10.0.2.2:3000",
+    val backendUrl: String = SettingsRepository.DEFAULT_BACKEND_URL,
     val apiKey: String = "",
     val healthStatus: String = "",
     val healthOk: Boolean = false,
@@ -26,12 +27,15 @@ data class SettingsUiState(
     val showAddContainerTypeDialog: Boolean = false,
     val showAddCategoryDialog: Boolean = false,
     val error: String? = null,
+    val connectionExpanded: Boolean = false,
+    val showQrDialog: Boolean = false,
 )
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
     private val api: HopLedgerApi,
     private val settings: SettingsRepository,
+    private val sync: SyncRepository,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -57,19 +61,36 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun toggleConnectionExpanded() { _uiState.update { it.copy(connectionExpanded = !it.connectionExpanded) } }
+    fun showQr() { _uiState.update { it.copy(showQrDialog = true) } }
+    fun dismissQr() { _uiState.update { it.copy(showQrDialog = false) } }
+
+    fun applyQrPayload(json: String) {
+        val (url, apiKey) = parseQrPayload(json) ?: return
+        _uiState.update { it.copy(backendUrl = url, apiKey = apiKey) }
+        viewModelScope.launch {
+            settings.setBackendUrl(url)
+            settings.setApiKey(apiKey)
+        }
+    }
+
     fun checkHealth() {
         viewModelScope.launch {
+            sync.startSync()
             try {
                 val response = api.health()
                 _uiState.update { it.copy(healthStatus = "✅ ${response.status} — DB: ${response.database}", healthOk = true) }
+                sync.endSync()
             } catch (e: Exception) {
                 _uiState.update { it.copy(healthStatus = "❌ ${e.message}", healthOk = false) }
+                sync.endSync(e.message)
             }
         }
     }
 
     fun refreshAll() {
         viewModelScope.launch {
+            sync.startSync()
             try {
                 val brewers = api.getBrewers()
                 val beers = api.getBeers()
@@ -77,8 +98,10 @@ class SettingsViewModel @Inject constructor(
                 val types = api.getContainerTypes()
                 val categories = api.getCategories()
                 _uiState.update { it.copy(brewers = brewers, beers = beers, locations = locations, containerTypes = types, categories = categories, error = null) }
+                sync.endSync()
             } catch (e: Exception) {
                 _uiState.update { it.copy(error = e.message) }
+                sync.endSync(e.message)
             }
         }
     }
@@ -95,75 +118,85 @@ class SettingsViewModel @Inject constructor(
     fun addBrewer(name: String) {
         if (name.isBlank()) return
         viewModelScope.launch {
-            try { api.createBrewer(BrewerRequest(name)); dismissDialogs(); refreshAll() }
-            catch (e: Exception) { _uiState.update { it.copy(error = e.message) } }
+            sync.startSync()
+            try { api.createBrewer(BrewerRequest(name)); dismissDialogs(); sync.endSync(); refreshAll() }
+            catch (e: Exception) { _uiState.update { it.copy(error = e.message) }; sync.endSync(e.message) }
         }
     }
 
     fun deleteBrewer(id: String) {
         viewModelScope.launch {
-            try { api.deleteBrewer(id); refreshAll() }
-            catch (e: Exception) { _uiState.update { it.copy(error = e.message) } }
+            sync.startSync()
+            try { api.deleteBrewer(id); sync.endSync(); refreshAll() }
+            catch (e: Exception) { _uiState.update { it.copy(error = e.message) }; sync.endSync(e.message) }
         }
     }
 
     fun addBeer(name: String, style: String?) {
         if (name.isBlank()) return
         viewModelScope.launch {
-            try { api.createBeer(BeerRequest(name, style)); dismissDialogs(); refreshAll() }
-            catch (e: Exception) { _uiState.update { it.copy(error = e.message) } }
+            sync.startSync()
+            try { api.createBeer(BeerRequest(name, style)); dismissDialogs(); sync.endSync(); refreshAll() }
+            catch (e: Exception) { _uiState.update { it.copy(error = e.message) }; sync.endSync(e.message) }
         }
     }
 
     fun deleteBeer(id: String) {
         viewModelScope.launch {
-            try { api.deleteBeer(id); refreshAll() }
-            catch (e: Exception) { _uiState.update { it.copy(error = e.message) } }
+            sync.startSync()
+            try { api.deleteBeer(id); sync.endSync(); refreshAll() }
+            catch (e: Exception) { _uiState.update { it.copy(error = e.message) }; sync.endSync(e.message) }
         }
     }
 
     fun addLocation(name: String, type: String) {
         if (name.isBlank()) return
         viewModelScope.launch {
-            try { api.createLocation(LocationRequest(name, type)); dismissDialogs(); refreshAll() }
-            catch (e: Exception) { _uiState.update { it.copy(error = e.message) } }
+            sync.startSync()
+            try { api.createLocation(LocationRequest(name, type)); dismissDialogs(); sync.endSync(); refreshAll() }
+            catch (e: Exception) { _uiState.update { it.copy(error = e.message) }; sync.endSync(e.message) }
         }
     }
 
     fun deleteLocation(id: String) {
         viewModelScope.launch {
-            try { api.deleteLocation(id); refreshAll() }
-            catch (e: Exception) { _uiState.update { it.copy(error = e.message) } }
+            sync.startSync()
+            try { api.deleteLocation(id); sync.endSync(); refreshAll() }
+            catch (e: Exception) { _uiState.update { it.copy(error = e.message) }; sync.endSync(e.message) }
         }
     }
 
     fun addContainerType(name: String, externalPrice: Double, internalPrice: Double, depositFee: Double) {
         if (name.isBlank()) return
         viewModelScope.launch {
-            try { api.createContainerType(ContainerTypeRequest(name, externalPrice = externalPrice, internalPrice = internalPrice, depositFee = depositFee)); dismissDialogs(); refreshAll() }
-            catch (e: Exception) { _uiState.update { it.copy(error = e.message) } }
+            sync.startSync()
+            try { api.createContainerType(ContainerTypeRequest(name, externalPrice = externalPrice, internalPrice = internalPrice, depositFee = depositFee)); dismissDialogs(); sync.endSync(); refreshAll() }
+            catch (e: Exception) { _uiState.update { it.copy(error = e.message) }; sync.endSync(e.message) }
         }
     }
 
     fun deleteContainerType(id: String) {
         viewModelScope.launch {
-            try { api.deleteContainerType(id); refreshAll() }
-            catch (e: Exception) { _uiState.update { it.copy(error = e.message) } }
+            sync.startSync()
+            try { api.deleteContainerType(id); sync.endSync(); refreshAll() }
+            catch (e: Exception) { _uiState.update { it.copy(error = e.message) }; sync.endSync(e.message) }
         }
     }
 
-    fun addCategory(name: String) {
+    fun addCategory(name: String, type: String) {
         if (name.isBlank()) return
         viewModelScope.launch {
-            try { api.createCategory(CategoryRequest(name)); dismissDialogs(); refreshAll() }
-            catch (e: Exception) { _uiState.update { it.copy(error = e.message) } }
+            sync.startSync()
+            try { api.createCategory(CategoryRequest(name, type)); dismissDialogs(); sync.endSync(); refreshAll() }
+            catch (e: Exception) { _uiState.update { it.copy(error = e.message) }; sync.endSync(e.message) }
         }
     }
 
     fun deleteCategory(id: String) {
         viewModelScope.launch {
-            try { api.deleteCategory(id); refreshAll() }
-            catch (e: Exception) { _uiState.update { it.copy(error = e.message) } }
+            sync.startSync()
+            try { api.deleteCategory(id); sync.endSync(); refreshAll() }
+            catch (e: Exception) { _uiState.update { it.copy(error = e.message) }; sync.endSync(e.message) }
         }
     }
 }

@@ -130,7 +130,7 @@ data class SelfConsumeRequest(val containerId: String, val brewerId: String)
 data class ContainerReturnRequest(val containerId: String, val brewerId: String, val returnLocationId: String)
 
 @Serializable
-data class Category(val id: String, val name: String)
+data class Category(val id: String, val name: String, val type: String = "income")
 
 @Serializable
-data class CategoryRequest(val name: String)
+data class CategoryRequest(val name: String, val type: String)

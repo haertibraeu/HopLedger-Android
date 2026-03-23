@@ -27,6 +27,9 @@ import androidx.hilt.navigation.compose.hiltViewModel
 fun InventoryScreen(viewModel: InventoryViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsState()
 
+    // Refresh every time this screen enters composition (tab switches, navigation back)
+    LaunchedEffect(Unit) { viewModel.refresh() }
+
     Box(modifier = Modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
             FilterRow(
@@ -91,7 +94,7 @@ fun InventoryScreen(viewModel: InventoryViewModel = hiltViewModel()) {
             onDestroyBeer = { ids -> viewModel.batchDestroyBeer(ids) },
             onReserve = { ids, name -> viewModel.batchReserve(ids, name) },
             onUnreserve = { ids -> viewModel.batchUnreserve(ids) },
-            onSell = { ids, b, l -> viewModel.batchSell(ids, b, l) },
+            onSell = { ids, b, name -> viewModel.batchSellWithCustomer(ids, b, name) },
             onSelfConsume = { ids, b -> viewModel.batchSelfConsume(ids, b) },
             onContainerReturn = { ids, b, l -> viewModel.batchReturn(ids, b, l) },
             onDelete = { ids -> viewModel.batchDelete(ids) },
@@ -330,7 +333,7 @@ private fun ContainerActionSheet(
     onDestroyBeer: (List<String>) -> Unit,
     onReserve: (List<String>, String) -> Unit,
     onUnreserve: (List<String>) -> Unit,
-    onSell: (List<String>, String, String) -> Unit,
+    onSell: (List<String>, String, String) -> Unit,  // ids, brewerId, customerName
     onSelfConsume: (List<String>, String) -> Unit,
     onContainerReturn: (List<String>, String, String) -> Unit,
     onDelete: (List<String>) -> Unit,
@@ -438,7 +441,12 @@ private fun ContainerActionSheet(
         )
     }
 
-    if (showSell) TwoPickerDialog("Verkaufen", "Brauer", brewers.map { it.name to it.id }, "Kundenstandort", locations.map { it.name to it.id }, { b, l -> onSell(ids, b, l); showSell = false }, { showSell = false })
+    if (showSell) SellDialog(
+        reservedFor = container.reservedFor,
+        brewers = brewers,
+        onConfirm = { brewerId, customerName -> onSell(ids, brewerId, customerName); showSell = false },
+        onDismiss = { showSell = false },
+    )
     if (showConsume) PickerDialog("Brauer", brewers.map { it.name to it.id }, { onSelfConsume(ids, it); showConsume = false }, { showConsume = false })
     if (showReturn) TwoPickerDialog("Rückgabe", "Brauer", brewers.map { it.name to it.id }, "Rückgabeort", locations.map { it.name to it.id }, { b, l -> onContainerReturn(ids, b, l); showReturn = false }, { showReturn = false })
 
@@ -463,6 +471,60 @@ private fun ContainerActionSheet(
             dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text("Abbrechen") } },
         )
     }
+}
+
+@Composable
+private fun SellDialog(
+    reservedFor: String?,
+    brewers: List<com.haertibraeu.hopledger.data.model.Brewer>,
+    onConfirm: (brewerId: String, customerName: String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var selectedBrewerId by remember { mutableStateOf("") }
+    var customerName by remember { mutableStateOf(reservedFor ?: "") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("💰 Verkaufen") },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text("Brauer", style = MaterialTheme.typography.labelLarge)
+                brewers.forEach { brewer ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = selectedBrewerId == brewer.id, onClick = { selectedBrewerId = brewer.id })
+                        Text(brewer.name)
+                    }
+                }
+                HorizontalDivider()
+                Text("Kunde", style = MaterialTheme.typography.labelLarge)
+                if (reservedFor != null) {
+                    Text(
+                        "📋 Reserviert für: $reservedFor",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                } else {
+                    OutlinedTextField(
+                        value = customerName,
+                        onValueChange = { customerName = it },
+                        label = { Text("Kundenname") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { if (selectedBrewerId.isNotBlank() && customerName.isNotBlank()) onConfirm(selectedBrewerId, customerName) },
+                enabled = selectedBrewerId.isNotBlank() && customerName.isNotBlank(),
+            ) { Text("Verkaufen") }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } },
+    )
 }
 
 @Composable
