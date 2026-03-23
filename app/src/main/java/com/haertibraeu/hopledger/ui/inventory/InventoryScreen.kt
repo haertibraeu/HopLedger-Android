@@ -464,7 +464,7 @@ private fun ContainerActionSheet(
     }
 
     // ── Sub-dialogs ───────────────────────────────────────────────────────────
-    if (showMove) PickerDialog("Neuer Standort", locations.map { it.name to it.id }, { onMove(ids, it); showMove = false }, { showMove = false })
+    if (showMove) MoveLocationDialog(locations, { onMove(ids, it); showMove = false }, { showMove = false })
     if (showFill) PickerDialog("Bier auswählen", beers.map { it.name to it.id }, { onFill(ids, it); showFill = false }, { showFill = false })
 
     if (showReserve) {
@@ -559,6 +559,47 @@ private fun SellDialog(
                 enabled = selectedBrewerId.isNotBlank() && customerName.isNotBlank(),
             ) { Text("Verkaufen") }
         },
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } },
+    )
+}
+
+@Composable
+private fun MoveLocationDialog(
+    locations: List<com.haertibraeu.hopledger.data.model.Location>,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val primary = locations.filter { it.type == "brewer" || it.type == "brewery" }
+    val secondary = locations.filter { it.type != "brewer" && it.type != "brewery" }
+    var showOthers by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Neuer Standort") },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                primary.forEach { loc ->
+                    TextButton(onClick = { onSelect(loc.id) }, modifier = Modifier.fillMaxWidth()) { Text(loc.name, modifier = Modifier.weight(1f), textAlign = TextAlign.Start) }
+                }
+                if (secondary.isNotEmpty()) {
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                    TextButton(onClick = { showOthers = !showOthers }, modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            if (showOthers) "▲ Weitere ausblenden" else "▼ Weitere anzeigen (${secondary.size})",
+                            modifier = Modifier.weight(1f),
+                            textAlign = TextAlign.Start,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    if (showOthers) {
+                        secondary.forEach { loc ->
+                            TextButton(onClick = { onSelect(loc.id) }, modifier = Modifier.fillMaxWidth()) { Text(loc.name, modifier = Modifier.weight(1f), textAlign = TextAlign.Start) }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {},
         dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } },
     )
 }
