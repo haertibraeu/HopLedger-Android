@@ -2,9 +2,9 @@
 
 Android app for managing inventory and accounting at **HÄRTIBRÄU** micro-brewery. (Requires a running HopLedger-Backend)
 
-> ⚠️ **Warning: Opinionated & Over-Engineered**
+> ⚠️ **Warning: Opinionated & Vibe-Coded**
 >
-> This project is **heavily opinionated**, **over-engineered**, and **vibe-coded**. It is **not localized** and **not safe for production use** at all. Use at your own risk!
+> This project is **heavily opinionated**, a bit **over-engineered**, and **vibe-coded**. It is **not localized** and **not safe for production use** at all. Use at your own risk!
 
   
 
