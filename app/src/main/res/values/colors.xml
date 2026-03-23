@@ -9,6 +9,5 @@
     <color name="white">#FFFFFFFF</color>
 
     <!-- Härtibräu Brand Colors -->
-    <color name="hop_green">#1B5E20</color>
-    <color name="ic_launcher_background">@color/hop_green</color>
+    <color name="hop_green">#527455</color>
 </resources>
