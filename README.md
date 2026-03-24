@@ -1,6 +1,6 @@
 # HopLedger Android
 
-Android app for managing inventory and accounting at **HÄRTIBRÄU** micro-brewery. (Requires a running HopLedger-Backend)
+Android app for managing inventory and accounting at a micro-brewery. (Requires a running HopLedger-Backend)
 
 > ⚠️ **Warning: Opinionated & Vibe-Coded**
 >
