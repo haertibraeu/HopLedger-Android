@@ -2,9 +2,13 @@ package com.haertibraeu.hopledger.ui.settings
 
 import android.graphics.Bitmap
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -15,9 +19,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.haertibraeu.hopledger.BuildConfig
+import com.haertibraeu.hopledger.R
 import com.haertibraeu.hopledger.data.model.ContainerType
 import com.haertibraeu.hopledger.data.model.Location
 import com.journeyapps.barcodescanner.ScanContract
@@ -32,6 +42,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
     var brauerExpanded by remember { mutableStateOf(false) }
     var kategorienExpanded by remember { mutableStateOf(false) }
     var standorteExpanded by remember { mutableStateOf(false) }
+    var backupExpanded by remember { mutableStateOf(false) }
 
     // Delete confirmation state: holds a pair of (message, onConfirm)
     var pendingDelete by remember { mutableStateOf<Pair<String, () -> Unit>?>(null) }
@@ -40,6 +51,10 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
         result.contents?.let { viewModel.applyQrPayload(it) }
     }
 
+    val restoreFileLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri -> uri?.let { viewModel.onRestoreFileSelected(it) } }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -47,7 +62,9 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
         // Backend connection – collapsible
         item {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = viewModel::toggleConnectionExpanded),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -212,6 +229,41 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                 )
             }
         }
+
+        item { HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp)) }
+
+        // ── Backup & Restore ──────────────────────────────────────────────────
+        item {
+            CollapsibleSectionHeader("💾 Backup & Wiederherstellung", backupExpanded) { backupExpanded = !backupExpanded }
+        }
+        item {
+            AnimatedVisibility(visible = backupExpanded) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(top = 4.dp)) {
+                    Button(onClick = viewModel::createBackup, modifier = Modifier.fillMaxWidth()) {
+                        Text("Backup erstellen (in Downloads speichern)")
+                    }
+                    OutlinedButton(
+                        onClick = { restoreFileLauncher.launch(arrayOf("*/*")) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("Aus Backup wiederherstellen…")
+                    }
+                    uiState.backupMessage?.let { msg ->
+                        Text(
+                            msg,
+                            color = if (msg.startsWith("✅")) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.clickable { viewModel.clearBackupMessage() },
+                        )
+                    }
+                }
+            }
+        }
+
+        item { HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp)) }
+
+        // ── About ─────────────────────────────────────────────────────────────
+        item { AboutSection() }
     }
 
     // Delete confirmation dialog
@@ -238,6 +290,21 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
     if (uiState.showAddCategoryDialog) AddCategoryDialog(viewModel)
     uiState.editingContainerType?.let { EditContainerTypeDialog(it, viewModel) }
     if (uiState.showQrDialog) QrDialog(url = uiState.backendUrl, apiKey = uiState.apiKey, onDismiss = viewModel::dismissQr)
+
+    if (uiState.showRestoreConfirmDialog) {
+        AlertDialog(
+            onDismissRequest = viewModel::dismissRestoreConfirm,
+            title = { Text("Daten wiederherstellen?") },
+            text = { Text("Alle aktuellen Daten auf dem Server werden unwiderruflich überschrieben. Fortfahren?") },
+            confirmButton = {
+                TextButton(
+                    onClick = viewModel::confirmRestore,
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                ) { Text("Wiederherstellen") }
+            },
+            dismissButton = { TextButton(onClick = viewModel::dismissRestoreConfirm) { Text("Abbrechen") } },
+        )
+    }
 }
 
 private fun locationTypeLabel(type: String) = when (type) {
@@ -250,17 +317,19 @@ private fun locationTypeLabel(type: String) = when (type) {
 @Composable
 private fun CollapsibleSectionHeader(title: String, expanded: Boolean, onToggle: () -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onToggle)
+            .padding(vertical = 4.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Text(title, style = MaterialTheme.typography.titleMedium)
-        IconButton(onClick = onToggle) {
-            Icon(
-                if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                contentDescription = if (expanded) "Einklappen" else "Ausklappen",
-            )
-        }
+        Icon(
+            if (expanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+            contentDescription = if (expanded) "Einklappen" else "Ausklappen",
+            modifier = Modifier.padding(8.dp),
+        )
     }
 }
 
@@ -509,4 +578,73 @@ private fun QrDialog(url: String, apiKey: String, onDismiss: () -> Unit) {
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Schliessen") } },
     )
+}
+
+@Composable
+private fun AboutSection() {
+    val uriHandler = LocalUriHandler.current
+    val openSourceLibraries = listOf(
+        "Jetpack Compose" to "https://developer.android.com/jetpack/compose",
+        "Hilt / Dagger" to "https://dagger.dev/hilt/",
+        "Retrofit" to "https://square.github.io/retrofit/",
+        "OkHttp" to "https://square.github.io/okhttp/",
+        "Kotlin Serialization" to "https://github.com/Kotlin/kotlinx.serialization",
+        "DataStore Preferences" to "https://developer.android.com/topic/libraries/architecture/datastore",
+        "ZXing / zxing-android-embedded" to "https://github.com/journeyapps/zxing-android-embedded",
+        "Material3" to "https://m3.material.io/",
+    )
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+    ) {
+        Box(
+            modifier = Modifier
+                .size(88.dp)
+                .background(Color(0xFF2D2D2D), CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.haertibraeu),
+                contentDescription = "HÄRTIBRÄU Logo",
+                modifier = Modifier.size(64.dp),
+            )
+        }
+        Text("HopLedger", style = MaterialTheme.typography.titleMedium)
+        Text(
+            "Version ${BuildConfig.VERSION_NAME}",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            "Made by the Brewers of HÄRTIBRÄU",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary,
+            textDecoration = TextDecoration.Underline,
+            modifier = Modifier.clickable { uriHandler.openUri("https://haertibraeu.ch/") },
+        )
+        Text(
+            "MIT License",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            "Open-Source Libraries",
+            style = MaterialTheme.typography.labelLarge,
+            modifier = Modifier.align(Alignment.Start),
+        )
+        openSourceLibraries.forEach { (name, url) ->
+            Text(
+                "• $name",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+                textDecoration = TextDecoration.Underline,
+                modifier = Modifier
+                    .align(Alignment.Start)
+                    .clickable { uriHandler.openUri(url) },
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
+    }
 }
