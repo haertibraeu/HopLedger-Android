@@ -583,6 +583,7 @@ private fun QrDialog(url: String, apiKey: String, onDismiss: () -> Unit) {
 @Composable
 private fun AboutSection() {
     val uriHandler = LocalUriHandler.current
+    var libsExpanded by remember { mutableStateOf(false) }
     val openSourceLibraries = listOf(
         "Jetpack Compose" to "https://developer.android.com/jetpack/compose",
         "Hilt / Dagger" to "https://dagger.dev/hilt/",
@@ -602,7 +603,7 @@ private fun AboutSection() {
         Box(
             modifier = Modifier
                 .size(88.dp)
-                .background(Color(0xFF2D2D2D), CircleShape),
+                .background(Color(0xFF49494A), CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             Image(
@@ -629,21 +630,32 @@ private fun AboutSection() {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Text(
-            "Open-Source Libraries",
-            style = MaterialTheme.typography.labelLarge,
-            modifier = Modifier.align(Alignment.Start),
+        FilterChip(
+            selected = libsExpanded,
+            onClick = { libsExpanded = !libsExpanded },
+            label = { Text("Open-Source Libraries") },
+            trailingIcon = {
+                Icon(
+                    if (libsExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = null,
+                )
+            },
         )
-        openSourceLibraries.forEach { (name, url) ->
-            Text(
-                "• $name",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.primary,
-                textDecoration = TextDecoration.Underline,
-                modifier = Modifier
-                    .align(Alignment.Start)
-                    .clickable { uriHandler.openUri(url) },
-            )
+        AnimatedVisibility(visible = libsExpanded) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                openSourceLibraries.forEach { (name, url) ->
+                    Text(
+                        "• $name",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.primary,
+                        textDecoration = TextDecoration.Underline,
+                        modifier = Modifier.clickable { uriHandler.openUri(url) },
+                    )
+                }
+            }
         }
         Spacer(modifier = Modifier.height(8.dp))
     }
