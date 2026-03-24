@@ -8,6 +8,7 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 
-    <!-- Härtibräu Brand Colors -->
+    <!-- HopLedger Brand Colors -->
     <color name="hop_green">#527455</color>
+    <color name="ledger_bg">#90a098</color>
 </resources>
