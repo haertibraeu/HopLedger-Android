@@ -1,6 +1,9 @@
 package com.haertibraeu.hopledger.data.api
 
 import com.haertibraeu.hopledger.data.model.*
+import okhttp3.MultipartBody
+import okhttp3.ResponseBody
+import retrofit2.Response
 import retrofit2.http.*
 
 interface HopLedgerApi {
@@ -109,4 +112,13 @@ interface HopLedgerApi {
     suspend fun selfConsume(@Body body: SelfConsumeRequest): ActionResult
     @POST("api/actions/container-return")
     suspend fun containerReturn(@Body body: ContainerReturnRequest): ActionResult
+
+    // Backup
+    @Streaming
+    @GET("api/backup/export")
+    suspend fun exportBackup(): retrofit2.Response<okhttp3.ResponseBody>
+
+    @Multipart
+    @POST("api/backup/import")
+    suspend fun importBackup(@Part backup: okhttp3.MultipartBody.Part): retrofit2.Response<okhttp3.ResponseBody>
 }

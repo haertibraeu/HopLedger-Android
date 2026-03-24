@@ -1,5 +1,11 @@
 package com.haertibraeu.hopledger.ui.settings
 
+import android.content.ContentValues
+import android.content.Context
+import android.net.Uri
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.haertibraeu.hopledger.data.api.HopLedgerApi
@@ -7,8 +13,13 @@ import com.haertibraeu.hopledger.data.model.*
 import com.haertibraeu.hopledger.data.repository.SettingsRepository
 import com.haertibraeu.hopledger.data.repository.SyncRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.toRequestBody
+import java.time.LocalDate
 import javax.inject.Inject
 
 data class SettingsUiState(
@@ -30,6 +41,9 @@ data class SettingsUiState(
     val error: String? = null,
     val connectionExpanded: Boolean = false,
     val showQrDialog: Boolean = false,
+    val backupMessage: String? = null,
+    val showRestoreConfirmDialog: Boolean = false,
+    val pendingRestoreUri: Uri? = null,
 )
 
 @HiltViewModel
@@ -37,6 +51,7 @@ class SettingsViewModel @Inject constructor(
     private val api: HopLedgerApi,
     private val settings: SettingsRepository,
     private val sync: SyncRepository,
+    @ApplicationContext private val context: Context,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -105,6 +120,68 @@ class SettingsViewModel @Inject constructor(
                 sync.endSync(e.message)
             }
         }
+    }
+
+    // ── Backup & Restore ──────────────────────────────────────────────────────
+
+    fun createBackup() {
+        viewModelScope.launch {
+            sync.startSync()
+            try {
+                val response = api.exportBackup()
+                val bytes = response.body()?.bytes() ?: throw Exception("Empty response from server")
+                val filename = "hopledger-backup-${LocalDate.now()}.sqlite"
+                saveToDownloads(bytes, filename)
+                _uiState.update { it.copy(backupMessage = "✅ Backup gespeichert: $filename") }
+                sync.endSync()
+            } catch (e: Exception) {
+                _uiState.update { it.copy(backupMessage = "❌ Backup fehlgeschlagen: ${e.message}") }
+                sync.endSync(e.message)
+            }
+        }
+    }
+
+    fun onRestoreFileSelected(uri: Uri) {
+        _uiState.update { it.copy(showRestoreConfirmDialog = true, pendingRestoreUri = uri) }
+    }
+
+    fun confirmRestore() {
+        val uri = _uiState.value.pendingRestoreUri ?: return
+        _uiState.update { it.copy(showRestoreConfirmDialog = false, pendingRestoreUri = null) }
+        viewModelScope.launch {
+            sync.startSync()
+            try {
+                val bytes = context.contentResolver.openInputStream(uri)?.readBytes()
+                    ?: throw Exception("Datei konnte nicht gelesen werden")
+                val requestBody = bytes.toRequestBody("application/octet-stream".toMediaTypeOrNull())
+                val part = MultipartBody.Part.createFormData("backup", "backup.sqlite", requestBody)
+                api.importBackup(part)
+                _uiState.update { it.copy(backupMessage = "✅ Daten erfolgreich wiederhergestellt") }
+                sync.endSync()
+                refreshAll()
+            } catch (e: Exception) {
+                _uiState.update { it.copy(backupMessage = "❌ Wiederherstellung fehlgeschlagen: ${e.message}") }
+                sync.endSync(e.message)
+            }
+        }
+    }
+
+    fun dismissRestoreConfirm() {
+        _uiState.update { it.copy(showRestoreConfirmDialog = false, pendingRestoreUri = null) }
+    }
+
+    fun clearBackupMessage() { _uiState.update { it.copy(backupMessage = null) } }
+
+    private fun saveToDownloads(bytes: ByteArray, filename: String) {
+        val resolver = context.contentResolver
+        val values = ContentValues().apply {
+            put(MediaStore.Downloads.DISPLAY_NAME, filename)
+            put(MediaStore.Downloads.MIME_TYPE, "application/octet-stream")
+            put(MediaStore.Downloads.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+        }
+        val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
+            ?: throw Exception("Konnte Datei nicht in Downloads speichern")
+        resolver.openOutputStream(uri)?.use { it.write(bytes) }
     }
 
     // Dialog visibility
@@ -208,6 +285,15 @@ class SettingsViewModel @Inject constructor(
             sync.startSync()
             try { api.deleteCategory(id); sync.endSync(); refreshAll() }
             catch (e: Exception) { _uiState.update { it.copy(error = e.message) }; sync.endSync() }
+        }
+    }
+
+    private fun parseQrPayload(json: String): Pair<String, String>? {
+        return try {
+            val parts = json.split("|")
+            if (parts.size == 2) parts[0] to parts[1] else null
+        } catch (e: Exception) {
+            null
         }
     }
 }
