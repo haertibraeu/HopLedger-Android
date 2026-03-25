@@ -413,6 +413,11 @@ private fun ContainerActionSheet(
                 if (group.count > 1) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         FilledTonalIconButton(
+                            onClick = { quantity = 1 },
+                            enabled = quantity > 1,
+                            modifier = Modifier.size(32.dp),
+                        ) { Text("1") }
+                        FilledTonalIconButton(
                             onClick = { if (quantity > 1) quantity-- },
                             enabled = quantity > 1,
                             modifier = Modifier.size(32.dp),

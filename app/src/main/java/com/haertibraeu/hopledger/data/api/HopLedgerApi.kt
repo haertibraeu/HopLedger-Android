@@ -112,6 +112,8 @@ interface HopLedgerApi {
     suspend fun selfConsume(@Body body: SelfConsumeRequest): ActionResult
     @POST("api/actions/container-return")
     suspend fun containerReturn(@Body body: ContainerReturnRequest): ActionResult
+    @POST("api/actions/batch-return")
+    suspend fun batchContainerReturn(@Body body: BatchContainerReturnRequest): BatchActionResult
 
     // Backup
     @Streaming
