@@ -585,14 +585,11 @@ private fun AboutSection() {
     val uriHandler = LocalUriHandler.current
     var libsExpanded by remember { mutableStateOf(false) }
     val openSourceLibraries = listOf(
-        "Jetpack Compose" to "https://developer.android.com/jetpack/compose",
         "Hilt / Dagger" to "https://dagger.dev/hilt/",
         "Retrofit" to "https://square.github.io/retrofit/",
         "OkHttp" to "https://square.github.io/okhttp/",
         "Kotlin Serialization" to "https://github.com/Kotlin/kotlinx.serialization",
-        "DataStore Preferences" to "https://developer.android.com/topic/libraries/architecture/datastore",
         "ZXing / zxing-android-embedded" to "https://github.com/journeyapps/zxing-android-embedded",
-        "Material3" to "https://m3.material.io/",
     )
 
     Column(

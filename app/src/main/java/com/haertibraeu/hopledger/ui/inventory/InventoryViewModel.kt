@@ -209,10 +209,9 @@ class InventoryViewModel @Inject constructor(
         val s = _uiState.value
         val group = s.selectedGroup
         val prefix = descriptionPrefix(group, ids.size)
-        val brewerName = s.brewers.find { it.id == brewerId }?.name
         val locationName = s.locations.find { it.id == returnLocationId }?.name
-        val desc = "$prefix – Pfandrückgabe${brewerName?.let { " von $it" } ?: ""}${locationName?.let { " → $it" } ?: ""}"
-        ids.forEach { api.containerReturn(ContainerReturnRequest(it, brewerId, returnLocationId, desc)) }
+        val desc = "$prefix – Pfandrückgabe von Kunde${locationName?.let { " → $it" } ?: ""}"
+        api.batchContainerReturn(BatchContainerReturnRequest(ids, brewerId, returnLocationId, desc))
         dismissSheet()
     }
 
