@@ -1,8 +1,10 @@
 package com.haertibraeu.hopledger.ui.accounting
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -11,6 +13,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,11 +26,16 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import com.haertibraeu.hopledger.data.model.AccountEntry
 import com.haertibraeu.hopledger.data.model.Balance
 import com.haertibraeu.hopledger.data.model.Settlement
+import com.haertibraeu.hopledger.ui.theme.HopGreenContainer
+import com.haertibraeu.hopledger.ui.theme.HopGreenContainerDark
+import com.haertibraeu.hopledger.ui.theme.OnHopGreenContainer
+import com.haertibraeu.hopledger.ui.theme.OnHopGreenContainerDark
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun AccountingScreen(viewModel: AccountingViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsState()
+    var ausgleichExpanded by remember { mutableStateOf(true) }
 
     // Refresh every time this screen enters composition (tab switches, navigation back)
     LaunchedEffect(Unit) { viewModel.refresh() }
@@ -37,20 +46,9 @@ fun AccountingScreen(viewModel: AccountingViewModel = hiltViewModel()) {
             contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 88.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            // ── Settlements (split-bills core view) ───────────────────────
-            item {
-                Text("🤝 Ausgleich", style = MaterialTheme.typography.titleLarge)
-            }
-            item {
-                SettlementsCard(
-                    settlements = uiState.settlements,
-                    onSettle = viewModel::confirmBookSettlement,
-                )
-            }
-
             // ── Per-brewer relative balances ──────────────────────────────
             item {
-                Text("Kontostände", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 4.dp))
+                Text("Kontostände", style = MaterialTheme.typography.titleLarge)
             }
             items(uiState.balances) { balance ->
                 BalanceCard(balance)
@@ -58,6 +56,32 @@ fun AccountingScreen(viewModel: AccountingViewModel = hiltViewModel()) {
 
             if (uiState.balances.isEmpty() && !uiState.isLoading) {
                 item { Text("Keine Brauer erfasst", modifier = Modifier.padding(8.dp)) }
+            }
+
+            // ── Settlements (split-bills core view) ───────────────────────
+            item {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { ausgleichExpanded = !ausgleichExpanded }
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text("🤝 Ausgleich", style = MaterialTheme.typography.titleMedium)
+                    Icon(
+                        if (ausgleichExpanded) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = if (ausgleichExpanded) "Einklappen" else "Ausklappen",
+                    )
+                }
+            }
+            item {
+                AnimatedVisibility(visible = ausgleichExpanded) {
+                    SettlementsCard(
+                        settlements = uiState.settlements,
+                        onSettle = viewModel::confirmBookSettlement,
+                    )
+                }
             }
 
             // ── Transaction history ───────────────────────────────────────
@@ -223,30 +247,29 @@ private fun SettlementsCard(
     settlements: List<Settlement>,
     onSettle: (Settlement) -> Unit,
 ) {
+    val containerColor = if (isSystemInDarkTheme()) HopGreenContainerDark else HopGreenContainer
+    val onContainerColor = if (isSystemInDarkTheme()) OnHopGreenContainerDark else OnHopGreenContainer
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(
-            containerColor = if (settlements.isEmpty()) MaterialTheme.colorScheme.secondaryContainer
-                             else MaterialTheme.colorScheme.errorContainer,
-        ),
+        colors = CardDefaults.cardColors(containerColor = containerColor),
     ) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (settlements.isEmpty()) {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("✅", style = MaterialTheme.typography.titleMedium)
-                    Text("Alle Konten sind ausgeglichen", style = MaterialTheme.typography.bodyMedium)
+                    Text("Alle Konten sind ausgeglichen", style = MaterialTheme.typography.bodyMedium, color = onContainerColor)
                 }
             } else {
                 Text(
                     "Tippe auf eine Zahlung, um sie zu buchen",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onErrorContainer,
+                    color = onContainerColor,
                 )
                 settlements.forEach { s ->
                     Surface(
                         onClick = { onSettle(s) },
                         shape = MaterialTheme.shapes.small,
-                        color = MaterialTheme.colorScheme.errorContainer,
+                        color = MaterialTheme.colorScheme.surface,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Row(

@@ -59,7 +59,102 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
         modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        // Backend connection – collapsible
+        // ── Biere ────────────────────────────────────────────────────────────
+        item {
+            CollapsibleSectionHeader("🍺 Biere", biereExpanded) { biereExpanded = !biereExpanded }
+        }
+        item {
+            AnimatedVisibility(visible = biereExpanded) {
+                SettingsSection(
+                    title = "Biere",
+                    items = uiState.beers.map { "${it.name}${it.style?.let { s -> " ($s)" } ?: ""}" },
+                    onAdd = viewModel::showAddBeer,
+                    onDelete = { idx ->
+                        uiState.beers.getOrNull(idx)?.let { beer ->
+                            pendingDelete = "Bier \"${beer.name}\" löschen?\n\nDas Bier wird aus allen Gebinden entfernt, die es enthalten." to { viewModel.deleteBeer(beer.id) }
+                        }
+                    },
+                )
+            }
+        }
+
+        // ── Gebindetypen ─────────────────────────────────────────────────────
+        item {
+            CollapsibleSectionHeader("🫙 Gebindetypen", gebindetypenExpanded) { gebindetypenExpanded = !gebindetypenExpanded }
+        }
+        item {
+            AnimatedVisibility(visible = gebindetypenExpanded) {
+                ContainerTypesSection(
+                    containerTypes = uiState.containerTypes,
+                    onAdd = viewModel::showAddContainerType,
+                    onEdit = { viewModel.showEditContainerType(it) },
+                    onDelete = { ct ->
+                        pendingDelete = "Gebindetyp \"${ct.name}\" löschen?\n\nKann nur gelöscht werden, wenn keine Gebinde dieses Typs mehr existieren." to { viewModel.deleteContainerType(ct.id) }
+                    },
+                )
+            }
+        }
+
+        // ── Standorte ────────────────────────────────────────────────────────
+        item {
+            CollapsibleSectionHeader("📍 Standorte", standorteExpanded) { standorteExpanded = !standorteExpanded }
+        }
+        item {
+            AnimatedVisibility(visible = standorteExpanded) {
+                SettingsSection(
+                    title = "Standorte",
+                    items = uiState.locations.map { "${it.name} · ${locationTypeLabel(it.type)}" },
+                    onAdd = viewModel::showAddLocation,
+                    onDelete = { idx ->
+                        uiState.locations.getOrNull(idx)?.let { loc ->
+                            pendingDelete = "Standort \"${loc.name}\" löschen?\n\nAlle Gebinde an diesem Standort müssen zuerst verschoben werden." to { viewModel.deleteLocation(loc.id) }
+                        }
+                    },
+                )
+            }
+        }
+
+        // ── Finanzkategorien ─────────────────────────────────────────────────
+        item {
+            CollapsibleSectionHeader("📊 Finanzkategorien", kategorienExpanded) { kategorienExpanded = !kategorienExpanded }
+        }
+        item {
+            AnimatedVisibility(visible = kategorienExpanded) {
+                SettingsSection(
+                    title = "Finanzkategorien",
+                    items = uiState.categories.map { "${if (it.type == "income") "💰" else "💸"} ${it.name}" },
+                    onAdd = viewModel::showAddCategory,
+                    onDelete = { idx ->
+                        uiState.categories.getOrNull(idx)?.let { cat ->
+                            pendingDelete = "Kategorie \"${cat.name}\" löschen?\n\nBestehende Buchungen behalten ihre Kategorie — nur neue Buchungen können sie nicht mehr verwenden." to { viewModel.deleteCategory(cat.id) }
+                        }
+                    },
+                )
+            }
+        }
+
+        // ── Brauer ───────────────────────────────────────────────────────────
+        item {
+            CollapsibleSectionHeader("🧙 Brauer", brauerExpanded) { brauerExpanded = !brauerExpanded }
+        }
+        item {
+            AnimatedVisibility(visible = brauerExpanded) {
+                SettingsSection(
+                    title = "Brauer",
+                    items = uiState.brewers.map { it.name },
+                    onAdd = viewModel::showAddBrewer,
+                    onDelete = { idx ->
+                        uiState.brewers.getOrNull(idx)?.let { brewer ->
+                            pendingDelete = "Brauer \"${brewer.name}\" löschen?\n\nAlle Buchungen und Biere bleiben erhalten, aber der Brauer kann danach nicht mehr verwendet werden." to { viewModel.deleteBrewer(brewer.id) }
+                        }
+                    },
+                )
+            }
+        }
+
+        item { HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp)) }
+
+        // ── Verbindung ────────────────────────────────────────────────────────
         item {
             Row(
                 modifier = Modifier
@@ -125,112 +220,6 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                 }
             }
         }
-
-        // Master data sections
-        item { HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp)) }
-
-        // ── Gebindetypen ─────────────────────────────────────────────────────
-        item {
-            CollapsibleSectionHeader("🫙 Gebindetypen", gebindetypenExpanded) { gebindetypenExpanded = !gebindetypenExpanded }
-        }
-        item {
-            AnimatedVisibility(visible = gebindetypenExpanded) {
-                ContainerTypesSection(
-                    containerTypes = uiState.containerTypes,
-                    onAdd = viewModel::showAddContainerType,
-                    onEdit = { viewModel.showEditContainerType(it) },
-                    onDelete = { ct ->
-                        pendingDelete = "Gebindetyp \"${ct.name}\" löschen?\n\nKann nur gelöscht werden, wenn keine Gebinde dieses Typs mehr existieren." to { viewModel.deleteContainerType(ct.id) }
-                    },
-                )
-            }
-        }
-
-        item { HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp)) }
-
-        // ── Biere ────────────────────────────────────────────────────────────
-        item {
-            CollapsibleSectionHeader("🍺 Biere", biereExpanded) { biereExpanded = !biereExpanded }
-        }
-        item {
-            AnimatedVisibility(visible = biereExpanded) {
-                SettingsSection(
-                    title = "Biere",
-                    items = uiState.beers.map { "${it.name}${it.style?.let { s -> " ($s)" } ?: ""}" },
-                    onAdd = viewModel::showAddBeer,
-                    onDelete = { idx ->
-                        uiState.beers.getOrNull(idx)?.let { beer ->
-                            pendingDelete = "Bier \"${beer.name}\" löschen?\n\nDas Bier wird aus allen Gebinden entfernt, die es enthalten." to { viewModel.deleteBeer(beer.id) }
-                        }
-                    },
-                )
-            }
-        }
-
-        item { HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp)) }
-
-        // ── Brauer ───────────────────────────────────────────────────────────
-        item {
-            CollapsibleSectionHeader("🧙 Brauer", brauerExpanded) { brauerExpanded = !brauerExpanded }
-        }
-        item {
-            AnimatedVisibility(visible = brauerExpanded) {
-                SettingsSection(
-                    title = "Brauer",
-                    items = uiState.brewers.map { it.name },
-                    onAdd = viewModel::showAddBrewer,
-                    onDelete = { idx ->
-                        uiState.brewers.getOrNull(idx)?.let { brewer ->
-                            pendingDelete = "Brauer \"${brewer.name}\" löschen?\n\nAlle Buchungen und Biere bleiben erhalten, aber der Brauer kann danach nicht mehr verwendet werden." to { viewModel.deleteBrewer(brewer.id) }
-                        }
-                    },
-                )
-            }
-        }
-
-        item { HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp)) }
-
-        // ── Finanzkategorien ─────────────────────────────────────────────────
-        item {
-            CollapsibleSectionHeader("📊 Finanzkategorien", kategorienExpanded) { kategorienExpanded = !kategorienExpanded }
-        }
-        item {
-            AnimatedVisibility(visible = kategorienExpanded) {
-                SettingsSection(
-                    title = "Finanzkategorien",
-                    items = uiState.categories.map { "${if (it.type == "income") "💰" else "💸"} ${it.name}" },
-                    onAdd = viewModel::showAddCategory,
-                    onDelete = { idx ->
-                        uiState.categories.getOrNull(idx)?.let { cat ->
-                            pendingDelete = "Kategorie \"${cat.name}\" löschen?\n\nBestehende Buchungen behalten ihre Kategorie — nur neue Buchungen können sie nicht mehr verwenden." to { viewModel.deleteCategory(cat.id) }
-                        }
-                    },
-                )
-            }
-        }
-
-        item { HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp)) }
-
-        // ── Standorte ────────────────────────────────────────────────────────
-        item {
-            CollapsibleSectionHeader("📍 Standorte", standorteExpanded) { standorteExpanded = !standorteExpanded }
-        }
-        item {
-            AnimatedVisibility(visible = standorteExpanded) {
-                SettingsSection(
-                    title = "Standorte",
-                    items = uiState.locations.map { "${it.name} · ${locationTypeLabel(it.type)}" },
-                    onAdd = viewModel::showAddLocation,
-                    onDelete = { idx ->
-                        uiState.locations.getOrNull(idx)?.let { loc ->
-                            pendingDelete = "Standort \"${loc.name}\" löschen?\n\nAlle Gebinde an diesem Standort müssen zuerst verschoben werden." to { viewModel.deleteLocation(loc.id) }
-                        }
-                    },
-                )
-            }
-        }
-
-        item { HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp)) }
 
         // ── Backup & Restore ──────────────────────────────────────────────────
         item {
