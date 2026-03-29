@@ -1,3 +1,5 @@
+import org.jetbrains.kotlin.gradle.dsl.JvmTarget
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -9,12 +11,12 @@ plugins {
 
 android {
     namespace = "com.haertibraeu.hopledger"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.haertibraeu.hopledger"
         minSdk = 29
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 11
         versionName = "1.3.5"
     }
@@ -31,8 +33,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
+    kotlin {
+        compilerOptions {
+            jvmTarget = JvmTarget.JVM_17
+        }
     }
 
     buildFeatures {
