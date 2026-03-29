@@ -3,18 +3,29 @@ package com.haertibraeu.hopledger.ui.settings
 import android.content.ContentValues
 import android.content.Context
 import android.net.Uri
-import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.haertibraeu.hopledger.data.api.HopLedgerApi
-import com.haertibraeu.hopledger.data.model.*
+import com.haertibraeu.hopledger.data.model.Beer
+import com.haertibraeu.hopledger.data.model.BeerRequest
+import com.haertibraeu.hopledger.data.model.Brewer
+import com.haertibraeu.hopledger.data.model.BrewerRequest
+import com.haertibraeu.hopledger.data.model.Category
+import com.haertibraeu.hopledger.data.model.CategoryRequest
+import com.haertibraeu.hopledger.data.model.ContainerType
+import com.haertibraeu.hopledger.data.model.ContainerTypeRequest
+import com.haertibraeu.hopledger.data.model.Location
+import com.haertibraeu.hopledger.data.model.LocationRequest
 import com.haertibraeu.hopledger.data.repository.SettingsRepository
 import com.haertibraeu.hopledger.data.repository.SyncRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.MultipartBody
@@ -67,8 +78,12 @@ class SettingsViewModel @Inject constructor(
         refreshAll()
     }
 
-    fun onBackendUrlChanged(url: String) { _uiState.update { it.copy(backendUrl = url) } }
-    fun onApiKeyChanged(key: String) { _uiState.update { it.copy(apiKey = key) } }
+    fun onBackendUrlChanged(url: String) {
+        _uiState.update { it.copy(backendUrl = url) }
+    }
+    fun onApiKeyChanged(key: String) {
+        _uiState.update { it.copy(apiKey = key) }
+    }
 
     fun saveSettings() {
         viewModelScope.launch {
@@ -77,9 +92,15 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun toggleConnectionExpanded() { _uiState.update { it.copy(connectionExpanded = !it.connectionExpanded) } }
-    fun showQr() { _uiState.update { it.copy(showQrDialog = true) } }
-    fun dismissQr() { _uiState.update { it.copy(showQrDialog = false) } }
+    fun toggleConnectionExpanded() {
+        _uiState.update { it.copy(connectionExpanded = !it.connectionExpanded) }
+    }
+    fun showQr() {
+        _uiState.update { it.copy(showQrDialog = true) }
+    }
+    fun dismissQr() {
+        _uiState.update { it.copy(showQrDialog = false) }
+    }
 
     fun applyQrPayload(json: String) {
         val (url, apiKey) = parseQrPayload(json) ?: return
@@ -170,7 +191,9 @@ class SettingsViewModel @Inject constructor(
         _uiState.update { it.copy(showRestoreConfirmDialog = false, pendingRestoreUri = null) }
     }
 
-    fun clearBackupMessage() { _uiState.update { it.copy(backupMessage = null) } }
+    fun clearBackupMessage() {
+        _uiState.update { it.copy(backupMessage = null) }
+    }
 
     private fun saveToDownloads(bytes: ByteArray, filename: String) {
         val resolver = context.contentResolver
@@ -185,29 +208,56 @@ class SettingsViewModel @Inject constructor(
     }
 
     // Dialog visibility
-    fun showAddBrewer() { _uiState.update { it.copy(showAddBrewerDialog = true) } }
-    fun showAddBeer() { _uiState.update { it.copy(showAddBeerDialog = true) } }
-    fun showAddLocation() { _uiState.update { it.copy(showAddLocationDialog = true) } }
-    fun showAddContainerType() { _uiState.update { it.copy(showAddContainerTypeDialog = true) } }
-    fun showAddCategory() { _uiState.update { it.copy(showAddCategoryDialog = true) } }
-    fun showEditContainerType(ct: ContainerType) { _uiState.update { it.copy(editingContainerType = ct) } }
-    fun dismissDialogs() { _uiState.update { it.copy(showAddBrewerDialog = false, showAddBeerDialog = false, showAddLocationDialog = false, showAddContainerTypeDialog = false, showAddCategoryDialog = false, editingContainerType = null) } }
+    fun showAddBrewer() {
+        _uiState.update { it.copy(showAddBrewerDialog = true) }
+    }
+    fun showAddBeer() {
+        _uiState.update { it.copy(showAddBeerDialog = true) }
+    }
+    fun showAddLocation() {
+        _uiState.update { it.copy(showAddLocationDialog = true) }
+    }
+    fun showAddContainerType() {
+        _uiState.update { it.copy(showAddContainerTypeDialog = true) }
+    }
+    fun showAddCategory() {
+        _uiState.update { it.copy(showAddCategoryDialog = true) }
+    }
+    fun showEditContainerType(ct: ContainerType) {
+        _uiState.update { it.copy(editingContainerType = ct) }
+    }
+    fun dismissDialogs() {
+        _uiState.update { it.copy(showAddBrewerDialog = false, showAddBeerDialog = false, showAddLocationDialog = false, showAddContainerTypeDialog = false, showAddCategoryDialog = false, editingContainerType = null) }
+    }
 
     // CRUD operations
     fun addBrewer(name: String) {
         if (name.isBlank()) return
         viewModelScope.launch {
             sync.startSync()
-            try { api.createBrewer(BrewerRequest(name)); dismissDialogs(); sync.endSync(); refreshAll() }
-            catch (e: Exception) { _uiState.update { it.copy(error = e.message) }; sync.endSync(e.message) }
+            try {
+                api.createBrewer(BrewerRequest(name))
+                dismissDialogs()
+                sync.endSync()
+                refreshAll()
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.message) }
+                sync.endSync(e.message)
+            }
         }
     }
 
     fun deleteBrewer(id: String) {
         viewModelScope.launch {
             sync.startSync()
-            try { api.deleteBrewer(id); sync.endSync(); refreshAll() }
-            catch (e: Exception) { _uiState.update { it.copy(error = e.message) }; sync.endSync() }
+            try {
+                api.deleteBrewer(id)
+                sync.endSync()
+                refreshAll()
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.message) }
+                sync.endSync()
+            }
         }
     }
 
@@ -215,16 +265,29 @@ class SettingsViewModel @Inject constructor(
         if (name.isBlank()) return
         viewModelScope.launch {
             sync.startSync()
-            try { api.createBeer(BeerRequest(name, style)); dismissDialogs(); sync.endSync(); refreshAll() }
-            catch (e: Exception) { _uiState.update { it.copy(error = e.message) }; sync.endSync(e.message) }
+            try {
+                api.createBeer(BeerRequest(name, style))
+                dismissDialogs()
+                sync.endSync()
+                refreshAll()
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.message) }
+                sync.endSync(e.message)
+            }
         }
     }
 
     fun deleteBeer(id: String) {
         viewModelScope.launch {
             sync.startSync()
-            try { api.deleteBeer(id); sync.endSync(); refreshAll() }
-            catch (e: Exception) { _uiState.update { it.copy(error = e.message) }; sync.endSync() }
+            try {
+                api.deleteBeer(id)
+                sync.endSync()
+                refreshAll()
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.message) }
+                sync.endSync()
+            }
         }
     }
 
@@ -232,16 +295,29 @@ class SettingsViewModel @Inject constructor(
         if (name.isBlank()) return
         viewModelScope.launch {
             sync.startSync()
-            try { api.createLocation(LocationRequest(name, type)); dismissDialogs(); sync.endSync(); refreshAll() }
-            catch (e: Exception) { _uiState.update { it.copy(error = e.message) }; sync.endSync(e.message) }
+            try {
+                api.createLocation(LocationRequest(name, type))
+                dismissDialogs()
+                sync.endSync()
+                refreshAll()
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.message) }
+                sync.endSync(e.message)
+            }
         }
     }
 
     fun deleteLocation(id: String) {
         viewModelScope.launch {
             sync.startSync()
-            try { api.deleteLocation(id); sync.endSync(); refreshAll() }
-            catch (e: Exception) { _uiState.update { it.copy(error = e.message) }; sync.endSync() }
+            try {
+                api.deleteLocation(id)
+                sync.endSync()
+                refreshAll()
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.message) }
+                sync.endSync()
+            }
         }
     }
 
@@ -249,16 +325,29 @@ class SettingsViewModel @Inject constructor(
         if (name.isBlank()) return
         viewModelScope.launch {
             sync.startSync()
-            try { api.createContainerType(ContainerTypeRequest(name, externalPrice = externalPrice, internalPrice = internalPrice, depositFee = depositFee)); dismissDialogs(); sync.endSync(); refreshAll() }
-            catch (e: Exception) { _uiState.update { it.copy(error = e.message) }; sync.endSync(e.message) }
+            try {
+                api.createContainerType(ContainerTypeRequest(name, externalPrice = externalPrice, internalPrice = internalPrice, depositFee = depositFee))
+                dismissDialogs()
+                sync.endSync()
+                refreshAll()
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.message) }
+                sync.endSync(e.message)
+            }
         }
     }
 
     fun deleteContainerType(id: String) {
         viewModelScope.launch {
             sync.startSync()
-            try { api.deleteContainerType(id); sync.endSync(); refreshAll() }
-            catch (e: Exception) { _uiState.update { it.copy(error = e.message) }; sync.endSync() }
+            try {
+                api.deleteContainerType(id)
+                sync.endSync()
+                refreshAll()
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.message) }
+                sync.endSync()
+            }
         }
     }
 
@@ -266,8 +355,15 @@ class SettingsViewModel @Inject constructor(
         if (name.isBlank()) return
         viewModelScope.launch {
             sync.startSync()
-            try { api.updateContainerType(id, ContainerTypeRequest(name, externalPrice = externalPrice, internalPrice = internalPrice, depositFee = depositFee)); dismissDialogs(); sync.endSync(); refreshAll() }
-            catch (e: Exception) { _uiState.update { it.copy(error = e.message) }; sync.endSync() }
+            try {
+                api.updateContainerType(id, ContainerTypeRequest(name, externalPrice = externalPrice, internalPrice = internalPrice, depositFee = depositFee))
+                dismissDialogs()
+                sync.endSync()
+                refreshAll()
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.message) }
+                sync.endSync()
+            }
         }
     }
 
@@ -275,16 +371,29 @@ class SettingsViewModel @Inject constructor(
         if (name.isBlank()) return
         viewModelScope.launch {
             sync.startSync()
-            try { api.createCategory(CategoryRequest(name, type)); dismissDialogs(); sync.endSync(); refreshAll() }
-            catch (e: Exception) { _uiState.update { it.copy(error = e.message) }; sync.endSync(e.message) }
+            try {
+                api.createCategory(CategoryRequest(name, type))
+                dismissDialogs()
+                sync.endSync()
+                refreshAll()
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.message) }
+                sync.endSync(e.message)
+            }
         }
     }
 
     fun deleteCategory(id: String) {
         viewModelScope.launch {
             sync.startSync()
-            try { api.deleteCategory(id); sync.endSync(); refreshAll() }
-            catch (e: Exception) { _uiState.update { it.copy(error = e.message) }; sync.endSync() }
+            try {
+                api.deleteCategory(id)
+                sync.endSync()
+                refreshAll()
+            } catch (e: Exception) {
+                _uiState.update { it.copy(error = e.message) }
+                sync.endSync()
+            }
         }
     }
 }

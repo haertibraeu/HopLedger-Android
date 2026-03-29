@@ -15,15 +15,15 @@ import javax.inject.Singleton
  */
 @Singleton
 class DynamicBaseUrlInterceptor @Inject constructor(
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
 ) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val originalRequest = chain.request()
-        
+
         // Retrieve the current backend URL from DataStore
         // Using runBlocking is acceptable here as it's a small local read on a background thread
         val backendUrl = runBlocking { settingsRepository.backendUrl.first() }
-        
+
         val newBaseUrl = backendUrl.toHttpUrlOrNull() ?: return chain.proceed(originalRequest)
 
         val newUrl = originalRequest.url.newBuilder()

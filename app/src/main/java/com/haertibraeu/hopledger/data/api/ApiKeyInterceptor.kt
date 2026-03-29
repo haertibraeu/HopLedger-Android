@@ -14,7 +14,7 @@ import javax.inject.Singleton
  */
 @Singleton
 class ApiKeyInterceptor @Inject constructor(
-    private val settingsRepository: SettingsRepository
+    private val settingsRepository: SettingsRepository,
 ) : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val apiKey = runBlocking { settingsRepository.apiKey.first() }

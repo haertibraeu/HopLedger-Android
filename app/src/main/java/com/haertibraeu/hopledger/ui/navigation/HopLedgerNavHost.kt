@@ -1,12 +1,31 @@
 package com.haertibraeu.hopledger.ui.navigation
 
-import androidx.compose.animation.core.*
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.Inventory2
+import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
@@ -101,28 +120,35 @@ fun HopLedgerNavHost(appViewModel: AppViewModel = hiltViewModel()) {
 private fun SyncIndicator(status: SyncStatus, onRefresh: () -> Unit) {
     val infiniteTransition = rememberInfiniteTransition(label = "spin")
     val rotation by infiniteTransition.animateFloat(
-        initialValue = 0f, targetValue = -360f,
+        initialValue = 0f,
+        targetValue = -360f,
         animationSpec = infiniteRepeatable(tween(1000, easing = LinearEasing)),
         label = "rotation",
     )
 
     when (status) {
         is SyncStatus.Idle -> {}
+
         is SyncStatus.Syncing -> Icon(
-            Icons.Default.Sync, contentDescription = "Synchronisiere…",
+            Icons.Default.Sync,
+            contentDescription = "Synchronisiere…",
             modifier = Modifier.padding(end = 12.dp).size(20.dp).rotate(rotation),
             tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
         )
+
         is SyncStatus.Success -> IconButton(onClick = onRefresh) {
             Icon(
-                Icons.Default.CloudDone, contentDescription = "Synchronisiert – tippen zum Aktualisieren",
+                Icons.Default.CloudDone,
+                contentDescription = "Synchronisiert – tippen zum Aktualisieren",
                 modifier = Modifier.size(20.dp),
                 tint = Color(0xFF527455),
             )
         }
+
         is SyncStatus.Error -> IconButton(onClick = onRefresh) {
             Icon(
-                Icons.Default.CloudOff, contentDescription = "Fehler – tippen zum Aktualisieren",
+                Icons.Default.CloudOff,
+                contentDescription = "Fehler – tippen zum Aktualisieren",
                 modifier = Modifier.size(20.dp),
                 tint = MaterialTheme.colorScheme.error,
             )

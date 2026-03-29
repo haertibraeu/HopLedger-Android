@@ -6,7 +6,14 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -16,8 +23,29 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -168,14 +196,14 @@ fun AccountingScreen(viewModel: AccountingViewModel = hiltViewModel()) {
 // ── Entry type display labels ─────────────────────────────────────────────────
 
 private fun entryTypeLabel(type: String) = when (type) {
-    "sale"             -> "Verkauf"
+    "sale" -> "Verkauf"
     "container_return" -> "Pfand"
-    "self_consume"     -> "Eigenverbrauch"
-    "settlement"       -> "Ausgleich"
-    "manual"           -> "Manuell"
-    "fill"             -> "Abfüllung"
-    "batch_fill"       -> "Abfüllung"
-    else               -> type.replace('_', ' ').replaceFirstChar { it.uppercase() }
+    "self_consume" -> "Eigenverbrauch"
+    "settlement" -> "Ausgleich"
+    "manual" -> "Manuell"
+    "fill" -> "Abfüllung"
+    "batch_fill" -> "Abfüllung"
+    else -> type.replace('_', ' ').replaceFirstChar { it.uppercase() }
 }
 
 // ── Entry card (long-press to delete) ─────────────────────────────────────────
@@ -229,8 +257,10 @@ private fun DeleteEntryDialog(entry: AccountEntry, onConfirm: () -> Unit, onDism
         onDismissRequest = onDismiss,
         title = { Text("Buchung löschen?") },
         text = {
-            Text("${entry.category?.name ?: entryTypeLabel(entry.type)}: ${"%.2f".format(entry.amount)} CHF" +
-                (entry.description?.let { "\n$it" } ?: ""))
+            Text(
+                "${entry.category?.name ?: entryTypeLabel(entry.type)}: ${"%.2f".format(entry.amount)} CHF" +
+                    (entry.description?.let { "\n$it" } ?: ""),
+            )
         },
         confirmButton = {
             TextButton(onClick = onConfirm) { Text("Löschen", color = MaterialTheme.colorScheme.error) }
@@ -348,7 +378,7 @@ private fun BookSettlementDialog(
         text = {
             Text(
                 "${settlement.from.name} zahlt ${"%.2f".format(settlement.amount)} CHF an ${settlement.to.name}.\n\n" +
-                "Dies wird als neue Buchung erfasst."
+                    "Dies wird als neue Buchung erfasst.",
             )
         },
         confirmButton = {
@@ -389,13 +419,13 @@ private fun ManualEntryDialog(viewModel: AccountingViewModel) {
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 Text("Brauer", style = MaterialTheme.typography.labelLarge)
                 SpinnerField(
                     value = selectedBrewerName,
                     options = uiState.brewers.map { it.name to it.id },
-                    onSelect = { selectedBrewerId = it ?: "" }
+                    onSelect = { selectedBrewerId = it ?: "" },
                 )
 
                 Text("Kategorie", style = MaterialTheme.typography.labelLarge)
@@ -404,7 +434,7 @@ private fun ManualEntryDialog(viewModel: AccountingViewModel) {
                     options = listOf("Keine Kategorie" to null) + uiState.categories.map {
                         "${if (it.type == "income") "💰" else "💸"} ${it.name}" to it.id
                     },
-                    onSelect = { selectedCategoryId = it }
+                    onSelect = { selectedCategoryId = it },
                 )
 
                 Text("Betrag (CHF)", style = MaterialTheme.typography.labelLarge)
@@ -420,7 +450,7 @@ private fun ManualEntryDialog(viewModel: AccountingViewModel) {
                         )
                     },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
                 )
 
                 Text("Beschreibung", style = MaterialTheme.typography.labelLarge)
@@ -429,7 +459,7 @@ private fun ManualEntryDialog(viewModel: AccountingViewModel) {
                     onValueChange = { description = it },
                     label = { Text("Zweck (optional)") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
                 )
             }
         },
@@ -440,7 +470,7 @@ private fun ManualEntryDialog(viewModel: AccountingViewModel) {
                     val finalAmount = if (selectedCategory?.type == "expense") -absAmount else absAmount
                     viewModel.addManualEntry(selectedBrewerId, finalAmount, description, "manual", selectedCategoryId)
                 },
-                enabled = selectedBrewerId.isNotBlank() && amountText.toDoubleOrNull() != null
+                enabled = selectedBrewerId.isNotBlank() && amountText.toDoubleOrNull() != null,
             ) {
                 Text("Buchen")
             }
@@ -449,7 +479,7 @@ private fun ManualEntryDialog(viewModel: AccountingViewModel) {
             TextButton(onClick = viewModel::dismissManualEntryDialog) {
                 Text("Abbrechen")
             }
-        }
+        },
     )
 }
 
@@ -457,26 +487,26 @@ private fun ManualEntryDialog(viewModel: AccountingViewModel) {
 private fun SpinnerField(
     value: String,
     options: List<Pair<String, String?>>,
-    onSelect: (String?) -> Unit
+    onSelect: (String?) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box {
         OutlinedButton(
             onClick = { expanded = true },
             modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
         ) {
             Text(
                 value,
                 modifier = Modifier.weight(1f),
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
             )
             Icon(Icons.Default.ArrowDropDown, null)
         }
         DropdownMenu(
             expanded = expanded,
-            onDismissRequest = { expanded = false }
+            onDismissRequest = { expanded = false },
         ) {
             options.forEach { (label, id) ->
                 DropdownMenuItem(
@@ -484,7 +514,7 @@ private fun SpinnerField(
                     onClick = {
                         onSelect(id)
                         expanded = false
-                    }
+                    },
                 )
             }
         }

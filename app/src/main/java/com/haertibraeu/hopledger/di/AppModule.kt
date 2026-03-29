@@ -33,34 +33,32 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideDataStore(@ApplicationContext context: Context): DataStore<Preferences> =
-        context.dataStore
+    fun provideDataStore(@ApplicationContext context: Context): DataStore<Preferences> = context.dataStore
 
     @Provides
     @Singleton
     fun provideOkHttpClient(
         baseUrlInterceptor: DynamicBaseUrlInterceptor,
         apiKeyInterceptor: ApiKeyInterceptor,
-    ): OkHttpClient =
-        OkHttpClient.Builder()
-            .addInterceptor(baseUrlInterceptor)
-            .addInterceptor(apiKeyInterceptor)
-            .addInterceptor(HttpLoggingInterceptor().apply {
+    ): OkHttpClient = OkHttpClient.Builder()
+        .addInterceptor(baseUrlInterceptor)
+        .addInterceptor(apiKeyInterceptor)
+        .addInterceptor(
+            HttpLoggingInterceptor().apply {
                 level = HttpLoggingInterceptor.Level.BODY
-            })
-            .build()
+            },
+        )
+        .build()
 
     @Provides
     @Singleton
-    fun provideRetrofit(client: OkHttpClient): Retrofit =
-        Retrofit.Builder()
-            .baseUrl("http://localhost/") // Placeholder, replaced by DynamicBaseUrlInterceptor
-            .client(client)
-            .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
-            .build()
+    fun provideRetrofit(client: OkHttpClient): Retrofit = Retrofit.Builder()
+        .baseUrl("http://localhost/") // Placeholder, replaced by DynamicBaseUrlInterceptor
+        .client(client)
+        .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+        .build()
 
     @Provides
     @Singleton
-    fun provideApi(retrofit: Retrofit): HopLedgerApi =
-        retrofit.create(HopLedgerApi::class.java)
+    fun provideApi(retrofit: Retrofit): HopLedgerApi = retrofit.create(HopLedgerApi::class.java)
 }

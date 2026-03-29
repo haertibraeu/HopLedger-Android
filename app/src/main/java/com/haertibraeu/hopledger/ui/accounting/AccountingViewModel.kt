@@ -3,10 +3,18 @@ package com.haertibraeu.hopledger.ui.accounting
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.haertibraeu.hopledger.data.api.HopLedgerApi
-import com.haertibraeu.hopledger.data.model.*
+import com.haertibraeu.hopledger.data.model.AccountEntry
+import com.haertibraeu.hopledger.data.model.Balance
+import com.haertibraeu.hopledger.data.model.Brewer
+import com.haertibraeu.hopledger.data.model.Category
+import com.haertibraeu.hopledger.data.model.EntryRequest
+import com.haertibraeu.hopledger.data.model.Settlement
 import com.haertibraeu.hopledger.data.repository.SyncRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -33,7 +41,9 @@ class AccountingViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(AccountingUiState())
     val uiState: StateFlow<AccountingUiState> = _uiState.asStateFlow()
 
-    init { refresh() }
+    init {
+        refresh()
+    }
 
     fun refresh() {
         viewModelScope.launch {
@@ -64,8 +74,12 @@ class AccountingViewModel @Inject constructor(
         refresh()
     }
 
-    fun showManualEntryDialog() { _uiState.update { it.copy(showManualEntryDialog = true) } }
-    fun dismissManualEntryDialog() { _uiState.update { it.copy(showManualEntryDialog = false) } }
+    fun showManualEntryDialog() {
+        _uiState.update { it.copy(showManualEntryDialog = true) }
+    }
+    fun dismissManualEntryDialog() {
+        _uiState.update { it.copy(showManualEntryDialog = false) }
+    }
 
     fun addManualEntry(brewerId: String, amount: Double, description: String, type: String, categoryId: String?) {
         viewModelScope.launch {
@@ -113,19 +127,23 @@ class AccountingViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 // Debit the payer (they hand over cash)
-                api.createEntry(EntryRequest(
-                    brewerId = s.from.id,
-                    amount = -s.amount,
-                    type = "settlement",
-                    description = "Ausgleichszahlung an ${s.to.name}",
-                ))
+                api.createEntry(
+                    EntryRequest(
+                        brewerId = s.from.id,
+                        amount = -s.amount,
+                        type = "settlement",
+                        description = "Ausgleichszahlung an ${s.to.name}",
+                    ),
+                )
                 // Credit the receiver (they receive cash)
-                api.createEntry(EntryRequest(
-                    brewerId = s.to.id,
-                    amount = s.amount,
-                    type = "settlement",
-                    description = "Ausgleichszahlung von ${s.from.name}",
-                ))
+                api.createEntry(
+                    EntryRequest(
+                        brewerId = s.to.id,
+                        amount = s.amount,
+                        type = "settlement",
+                        description = "Ausgleichszahlung von ${s.from.name}",
+                    ),
+                )
                 dismissSettlementDialog()
                 refresh()
             } catch (e: Exception) {

@@ -6,12 +6,12 @@ This directory contains planning documents for the Android app phases.
 
 ## Phases
 
-| Phase | Title | GitHub Issue | Depends On |
-|-------|-------|-------------|------------|
-| 7 | Android App Scaffolding (Kotlin + Jetpack Compose) | [#2](https://github.com/haertibraeu/HopLedger-Android/issues/2) ✅ | Backend Phases 1–5 |
-| 8 | Settings Screens: Manage Brewers, Container Types, Beers, Locations | [#1](https://github.com/haertibraeu/HopLedger-Android/issues/1) ✅ | Phase 7 + Backend Phase 2 |
-| 9 | Inventory Tab: Container List, Actions & Batch Fill | [#3](https://github.com/haertibraeu/HopLedger-Android/issues/3) ✅ | Phases 7, 8 + Backend Phase 5 |
-| 10 | Accounting Tab: Balances, Entries & Settlements | [#4](https://github.com/haertibraeu/HopLedger-Android/issues/4) ✅ | Phases 7, 8 + Backend Phase 4 |
+| Phase |                                Title                                |                           GitHub Issue                            |          Depends On           |
+|-------|---------------------------------------------------------------------|-------------------------------------------------------------------|-------------------------------|
+| 7     | Android App Scaffolding (Kotlin + Jetpack Compose)                  | [#2](https://github.com/haertibraeu/HopLedger-Android/issues/2) ✅ | Backend Phases 1–5            |
+| 8     | Settings Screens: Manage Brewers, Container Types, Beers, Locations | [#1](https://github.com/haertibraeu/HopLedger-Android/issues/1) ✅ | Phase 7 + Backend Phase 2     |
+| 9     | Inventory Tab: Container List, Actions & Batch Fill                 | [#3](https://github.com/haertibraeu/HopLedger-Android/issues/3) ✅ | Phases 7, 8 + Backend Phase 5 |
+| 10    | Accounting Tab: Balances, Entries & Settlements                     | [#4](https://github.com/haertibraeu/HopLedger-Android/issues/4) ✅ | Phases 7, 8 + Backend Phase 4 |
 
 ---
 
@@ -46,3 +46,4 @@ app/src/main/java/com/haertibraeu/hopledger/
 - All API calls target the **HopLedger-Backend** REST API
 - Backend URL is configurable via app settings (persisted in DataStore)
 - Backend must be running and accessible for the app to function
+

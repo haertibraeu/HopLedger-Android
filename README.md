@@ -6,8 +6,6 @@ Android app for managing inventory and accounting at a micro-brewery. (Requires 
 >
 > This project is **heavily opinionated**, a bit **over-engineered**, and **vibe-coded**. It is **not localized** and **not safe for production use** at all. Use at your own risk!
 
-  
-
 ## Features
 
 - 🍺 **Inventory** — Track bottles and kegs by type, beer, location and reservation status. Sell, self-consume, batch-fill and manage returns.
@@ -21,6 +19,7 @@ Android app for managing inventory and accounting at a micro-brewery. (Requires 
 [<img src="https://raw.githubusercontent.com/ImranR98/Obtainium/main/assets/graphics/badge_obtainium.png" alt="Get it on Obtainium" height="54">](https://obtainium.imranr.dev/redirect?r=obtainium%3A%2F%2Fadd%2Fhttps%3A%2F%2Fgithub.com%2Fhaertibraeu%2FHopLedger-Android)
 
 Add this app in Obtainium by pointing it at:
+
 ```
 https://github.com/haertibraeu/HopLedger-Android
 ```
@@ -47,12 +46,12 @@ Pushing a version tag (e.g. `v1.2.0`) triggers a **GitHub Release** with the APK
 
 For signed release builds, add these repository secrets:
 
-| Secret | Description |
-|--------|-------------|
-| `KEYSTORE_BASE64` | Base64-encoded `.jks` keystore (`base64 -w 0 keystore.jks`) |
-| `KEYSTORE_PASSWORD` | Keystore password |
-| `KEY_ALIAS` | Key alias |
-| `KEY_PASSWORD` | Key password |
+|       Secret        |                         Description                         |
+|---------------------|-------------------------------------------------------------|
+| `KEYSTORE_BASE64`   | Base64-encoded `.jks` keystore (`base64 -w 0 keystore.jks`) |
+| `KEYSTORE_PASSWORD` | Keystore password                                           |
+| `KEY_ALIAS`         | Key alias                                                   |
+| `KEY_PASSWORD`      | Key password                                                |
 
 Without these secrets the pipeline produces an **unsigned** release APK which can still be installed manually.
 

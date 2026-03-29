@@ -2,7 +2,18 @@ package com.haertibraeu.hopledger.ui.inventory
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -12,8 +23,37 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.InputChip
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ModalBottomSheet
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -124,7 +164,10 @@ private fun FilterRow(
     val locationTypeOptions = listOf("brewer" to "Brauer", "brewery" to "Brauerei", "customer" to "Kunde", "other" to "Andere")
     val defaultLocationTypes = setOf("brewer", "brewery")
     val visibleLocations = locations.filter { loc ->
-        val canonical = when (loc.type) { "brewer", "brewery", "customer" -> loc.type; else -> "other" }
+        val canonical = when (loc.type) {
+            "brewer", "brewery", "customer" -> loc.type
+            else -> "other"
+        }
         canonical in filterLocationTypes
     }
     val typeIsDefault = filterLocationTypes == defaultLocationTypes
@@ -170,7 +213,10 @@ private fun FilterRow(
                 DropdownMenuItem(
                     leadingIcon = { Text(emoji) },
                     text = { Text(name) },
-                    onClick = { onStatusFilter(f); close() },
+                    onClick = {
+                        onStatusFilter(f)
+                        close()
+                    },
                 )
             }
         }
@@ -186,7 +232,11 @@ private fun FilterRow(
             DropdownMenuItem(
                 leadingIcon = { Text("📍") },
                 text = { Text("Alle Standorte") },
-                onClick = { onLocationTypeFilter(allTypes); onLocationFilter(null); close() },
+                onClick = {
+                    onLocationTypeFilter(allTypes)
+                    onLocationFilter(null)
+                    close()
+                },
             )
             HorizontalDivider()
             // Type filter section (checkboxes, dropdown stays open on toggle)
@@ -200,7 +250,10 @@ private fun FilterRow(
                         onLocationTypeFilter(newTypes)
                         val selectedLoc = locations.find { it.id == filterLocationId }
                         if (selectedLoc != null) {
-                            val canonical = when (selectedLoc.type) { "brewer", "brewery", "customer" -> selectedLoc.type; else -> "other" }
+                            val canonical = when (selectedLoc.type) {
+                                "brewer", "brewery", "customer" -> selectedLoc.type
+                                else -> "other"
+                            }
                             if (canonical !in newTypes) onLocationFilter(null)
                         }
                     },
@@ -209,7 +262,10 @@ private fun FilterRow(
             HorizontalDivider()
             // Individual locations filtered by selected types
             visibleLocations.forEach { loc ->
-                DropdownMenuItem(leadingIcon = { Text("📍") }, text = { Text(loc.name) }, onClick = { onLocationFilter(loc.id); close() })
+                DropdownMenuItem(leadingIcon = { Text("📍") }, text = { Text(loc.name) }, onClick = {
+                    onLocationFilter(loc.id)
+                    close()
+                })
             }
         }
 
@@ -219,9 +275,15 @@ private fun FilterRow(
             label = beerName ?: "Bier",
             selected = filterBeerId != null,
         ) { close ->
-            DropdownMenuItem(leadingIcon = { Text("🍺") }, text = { Text("Alle Biere") }, onClick = { onBeerFilter(null); close() })
+            DropdownMenuItem(leadingIcon = { Text("🍺") }, text = { Text("Alle Biere") }, onClick = {
+                onBeerFilter(null)
+                close()
+            })
             beers.forEach { beer ->
-                DropdownMenuItem(leadingIcon = { Text("🍺") }, text = { Text(beer.name) }, onClick = { onBeerFilter(beer.id); close() })
+                DropdownMenuItem(leadingIcon = { Text("🍺") }, text = { Text(beer.name) }, onClick = {
+                    onBeerFilter(beer.id)
+                    close()
+                })
             }
         }
 
@@ -272,9 +334,13 @@ private fun ContainerGroupCard(group: ContainerGroup, onClick: () -> Unit) {
     val isEmpty = group.beer == null
 
     val cardColor = when {
-        isReserved -> MaterialTheme.colorScheme.secondaryContainer          // reserved: warm tint
-        isEmpty    -> MaterialTheme.colorScheme.surfaceVariant              // empty: muted neutral
-        else       -> MaterialTheme.colorScheme.primaryContainer            // full: primary tint
+        isReserved -> MaterialTheme.colorScheme.secondaryContainer
+
+        // reserved: warm tint
+        isEmpty -> MaterialTheme.colorScheme.surfaceVariant
+
+        // empty: muted neutral
+        else -> MaterialTheme.colorScheme.primaryContainer // full: primary tint
     }
 
     Card(
@@ -355,7 +421,12 @@ private fun SpinnerField(value: String, options: List<Pair<String, String>>, onS
             Icon(Icons.Default.ArrowDropDown, null)
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            options.forEach { (label, id) -> DropdownMenuItem(text = { Text(label) }, onClick = { onSelect(id); expanded = false }) }
+            options.forEach { (label, id) ->
+                DropdownMenuItem(text = { Text(label) }, onClick = {
+                    onSelect(id)
+                    expanded = false
+                })
+            }
         }
     }
 }
@@ -375,7 +446,7 @@ private fun ContainerActionSheet(
     onDestroyBeer: (List<String>) -> Unit,
     onReserve: (List<String>, String) -> Unit,
     onUnreserve: (List<String>) -> Unit,
-    onSell: (List<String>, String, String) -> Unit,  // ids, brewerId, customerName
+    onSell: (List<String>, String, String) -> Unit, // ids, brewerId, customerName
     onSelfConsume: (List<String>, String) -> Unit,
     onContainerReturn: (List<String>, String, String) -> Unit,
     onDelete: (List<String>) -> Unit,
@@ -475,27 +546,57 @@ private fun ContainerActionSheet(
     }
 
     // ── Sub-dialogs ───────────────────────────────────────────────────────────
-    if (showMove) MoveLocationDialog(locations, { onMove(ids, it); showMove = false }, { showMove = false })
-    if (showFill) PickerDialog("Bier auswählen", beers.map { it.name to it.id }, { onFill(ids, it); showFill = false }, { showFill = false })
+    if (showMove) {
+        MoveLocationDialog(locations, {
+            onMove(ids, it)
+            showMove = false
+        }, { showMove = false })
+    }
+    if (showFill) {
+        PickerDialog("Bier auswählen", beers.map { it.name to it.id }, {
+            onFill(ids, it)
+            showFill = false
+        }, { showFill = false })
+    }
 
     if (showReserve) {
         AlertDialog(
             onDismissRequest = { showReserve = false },
             title = { Text("Reservieren für") },
             text = { OutlinedTextField(value = customerName, onValueChange = { customerName = it }, label = { Text("Kundenname") }) },
-            confirmButton = { TextButton(onClick = { onReserve(ids, customerName); showReserve = false }) { Text("OK") } },
+            confirmButton = {
+                TextButton(onClick = {
+                    onReserve(ids, customerName)
+                    showReserve = false
+                }) { Text("OK") }
+            },
             dismissButton = { TextButton(onClick = { showReserve = false }) { Text("Abbrechen") } },
         )
     }
 
-    if (showSell) SellDialog(
-        reservedFor = container.reservedFor,
-        brewers = brewers,
-        onConfirm = { brewerId, customerName -> onSell(ids, brewerId, customerName); showSell = false },
-        onDismiss = { showSell = false },
-    )
-    if (showConsume) PickerDialog("Brauer", brewers.map { it.name to it.id }, { onSelfConsume(ids, it); showConsume = false }, { showConsume = false })
-    if (showReturn) TwoPickerDialog("Rückgabe", "Brauer", brewers.map { it.name to it.id }, "Rückgabeort", locations.filter { it.type in breweryLocationTypes }.map { it.name to it.id }, { b, l -> onContainerReturn(ids, b, l); showReturn = false }, { showReturn = false })
+    if (showSell) {
+        SellDialog(
+            reservedFor = container.reservedFor,
+            brewers = brewers,
+            onConfirm = { brewerId, customerName ->
+                onSell(ids, brewerId, customerName)
+                showSell = false
+            },
+            onDismiss = { showSell = false },
+        )
+    }
+    if (showConsume) {
+        PickerDialog("Brauer", brewers.map { it.name to it.id }, {
+            onSelfConsume(ids, it)
+            showConsume = false
+        }, { showConsume = false })
+    }
+    if (showReturn) {
+        TwoPickerDialog("Rückgabe", "Brauer", brewers.map { it.name to it.id }, "Rückgabeort", locations.filter { it.type in breweryLocationTypes }.map { it.name to it.id }, { b, l ->
+            onContainerReturn(ids, b, l)
+            showReturn = false
+        }, { showReturn = false })
+    }
 
     if (showDestroyBeerConfirm) {
         val qLabel = if (quantity == 1) "diesem Gebinde" else "$quantity Gebinden"
@@ -503,7 +604,12 @@ private fun ContainerActionSheet(
             onDismissRequest = { showDestroyBeerConfirm = false },
             title = { Text("Bier vernichten?") },
             text = { Text("Das Bier in $qLabel wird als vernichtet markiert. Die Gebinde werden leer — der Inhalt geht verloren. Diese Aktion kann nicht rückgängig gemacht werden.") },
-            confirmButton = { TextButton(onClick = { onDestroyBeer(ids); showDestroyBeerConfirm = false }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Vernichten") } },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDestroyBeer(ids)
+                    showDestroyBeerConfirm = false
+                }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Vernichten") }
+            },
             dismissButton = { TextButton(onClick = { showDestroyBeerConfirm = false }) { Text("Abbrechen") } },
         )
     }
@@ -514,7 +620,12 @@ private fun ContainerActionSheet(
             onDismissRequest = { showDeleteConfirm = false },
             title = { Text("Gebinde löschen?") },
             text = { Text("Du bist dabei, $qLabel endgültig aus dem System zu löschen. Alle zugehörigen Daten (Füllstand, Reservierungen) gehen verloren. Diese Aktion kann nicht rückgängig gemacht werden.") },
-            confirmButton = { TextButton(onClick = { onDelete(ids); showDeleteConfirm = false }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Löschen") } },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDelete(ids)
+                    showDeleteConfirm = false
+                }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Löschen") }
+            },
             dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text("Abbrechen") } },
         )
     }
@@ -617,24 +728,41 @@ private fun MoveLocationDialog(
 
 @Composable
 private fun PickerDialog(title: String, options: List<Pair<String, String>>, onSelect: (String) -> Unit, onDismiss: () -> Unit) {
-    AlertDialog(onDismissRequest = onDismiss, title = { Text(title) },
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
         text = { Column(modifier = Modifier.verticalScroll(rememberScrollState())) { options.forEach { (n, id) -> TextButton(onClick = { onSelect(id) }, modifier = Modifier.fillMaxWidth()) { Text(n) } } } },
-        confirmButton = {}, dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } })
+        confirmButton = {},
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } },
+    )
 }
 
 @Composable
 private fun TwoPickerDialog(title: String, label1: String, options1: List<Pair<String, String>>, label2: String, options2: List<Pair<String, String>>, onConfirm: (String, String) -> Unit, onDismiss: () -> Unit) {
     var s1 by remember { mutableStateOf("") }
     var s2 by remember { mutableStateOf("") }
-    AlertDialog(onDismissRequest = onDismiss, title = { Text(title) },
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(label1, style = MaterialTheme.typography.labelLarge)
-                options1.forEach { (n, id) -> Row(verticalAlignment = Alignment.CenterVertically) { RadioButton(selected = s1 == id, onClick = { s1 = id }); Text(n) } }
+                options1.forEach { (n, id) ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = s1 == id, onClick = { s1 = id })
+                        Text(n)
+                    }
+                }
                 Text(label2, style = MaterialTheme.typography.labelLarge)
-                options2.forEach { (n, id) -> Row(verticalAlignment = Alignment.CenterVertically) { RadioButton(selected = s2 == id, onClick = { s2 = id }); Text(n) } }
+                options2.forEach { (n, id) ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(selected = s2 == id, onClick = { s2 = id })
+                        Text(n)
+                    }
+                }
             }
         },
         confirmButton = { TextButton(onClick = { if (s1.isNotBlank() && s2.isNotBlank()) onConfirm(s1, s2) }, enabled = s1.isNotBlank() && s2.isNotBlank()) { Text("Bestätigen") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } })
+        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } },
+    )
 }
