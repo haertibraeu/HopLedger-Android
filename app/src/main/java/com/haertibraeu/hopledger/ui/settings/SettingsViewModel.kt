@@ -287,13 +287,4 @@ class SettingsViewModel @Inject constructor(
             catch (e: Exception) { _uiState.update { it.copy(error = e.message) }; sync.endSync() }
         }
     }
-
-    private fun parseQrPayload(json: String): Pair<String, String>? {
-        return try {
-            val parts = json.split("|")
-            if (parts.size == 2) parts[0] to parts[1] else null
-        } catch (e: Exception) {
-            null
-        }
-    }
 }
