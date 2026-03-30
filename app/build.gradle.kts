@@ -14,8 +14,8 @@ android {
         applicationId = "com.haertibraeu.hopledger"
         minSdk = 29
         targetSdk = 36
-        versionCode = 11
-        versionName = "1.3.5"
+        versionCode = 12
+        versionName = "1.3.6"
     }
 
     buildTypes {
