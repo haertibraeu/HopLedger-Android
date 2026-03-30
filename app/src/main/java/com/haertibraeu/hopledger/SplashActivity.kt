@@ -1,6 +1,7 @@
 package com.haertibraeu.hopledger
 
 import android.annotation.SuppressLint
+import android.app.ActivityOptions
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -29,8 +30,8 @@ class SplashActivity : ComponentActivity() {
         setContent { SplashScreen() }
         lifecycleScope.launch {
             delay(0)
-            startActivity(Intent(this@SplashActivity, MainActivity::class.java))
-            overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+            val options = ActivityOptions.makeCustomAnimation(this@SplashActivity, android.R.anim.fade_in, android.R.anim.fade_out)
+            startActivity(Intent(this@SplashActivity, MainActivity::class.java), options.toBundle())
             finish()
         }
     }
