@@ -493,7 +493,7 @@ private fun ContainerActionSheet(
                             enabled = quantity > 1,
                             modifier = Modifier.size(32.dp),
                         ) { Text("−") }
-                        Text("$quantity", style = MaterialTheme.typography.titleMedium, modifier = Modifier.widthIn(min = 28.dp), textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                        Text("$quantity", style = MaterialTheme.typography.titleMedium, modifier = Modifier.widthIn(min = 28.dp), textAlign = TextAlign.Center)
                         FilledTonalIconButton(
                             onClick = { if (quantity < group.count) quantity++ },
                             enabled = quantity < group.count,

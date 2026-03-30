@@ -133,7 +133,7 @@ class InventoryViewModel @Inject constructor(
     // Group by type + beer + location + who reserved (each unique reservation is its own card)
     private fun groupContainers(containers: List<Container>): List<ContainerGroup> = containers
         .groupBy { Pair(Triple(it.containerTypeId, it.beerId, it.locationId), it.reservedFor) }
-        .map { (key, group) ->
+        .map { (_, group) ->
             val s = group.first()
             ContainerGroup(
                 containerTypeId = s.containerTypeId,

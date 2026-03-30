@@ -2,6 +2,7 @@ package com.haertibraeu.hopledger.ui.settings
 
 import android.graphics.Bitmap
 import android.graphics.Color
+import androidx.core.graphics.createBitmap
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.MultiFormatWriter
@@ -14,7 +15,7 @@ fun buildQrBitmap(url: String, apiKey: String, size: Int = 512): Bitmap? = runCa
     val pixels = IntArray(size * size) { i ->
         if (matrix[i % size, i / size]) Color.BLACK else Color.WHITE
     }
-    Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888).also { it.setPixels(pixels, 0, size, 0, 0, size, size) }
+    createBitmap(size, size).also { it.setPixels(pixels, 0, size, 0, 0, size, size) }
 }.getOrNull()
 
 /** Parses a QR payload produced by [buildQrBitmap] and returns (url, apiKey), or null on failure. */
