@@ -57,7 +57,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
-import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.haertibraeu.hopledger.BuildConfig
 import com.haertibraeu.hopledger.R
 import com.haertibraeu.hopledger.data.model.ContainerType
