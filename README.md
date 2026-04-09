@@ -6,6 +6,14 @@ Android app for managing inventory and accounting at a micro-brewery. (Requires 
 >
 > This project is **heavily opinionated**, a bit **over-engineered**, and **vibe-coded**. It is **not localized** and **not safe for production use** at all. Use at your own risk!
 
+## Design Philosophy
+
+HopLedger is **container-centric**: the physical container (bottle, keg) is the central unit, not the beer inside it. Prices (selling price, self-consumption price, deposit fee) are defined on the **container type**, not on the beer — because in a small brewery, the bottle format determines the price, not the recipe.
+
+All actions (sell, self-consume, return) operate on containers. Accounting uses a **split-the-bills** model (like Splid/Splitwise), not traditional double-entry. There is **no local database** — all state lives on the backend; the app only stores the backend URL and API key.
+
+See the [Backend README](https://github.com/haertibraeu/HopLedger-Backend#design-philosophy) for a more detailed explanation.
+
 ## Features
 
 - 🍺 **Inventory** — Track bottles and kegs by type, beer, location and reservation status. Sell, self-consume, batch-fill and manage returns.
