@@ -6,6 +6,7 @@ import com.haertibraeu.hopledger.data.model.Balance
 import com.haertibraeu.hopledger.data.model.BatchActionResult
 import com.haertibraeu.hopledger.data.model.BatchContainerReturnRequest
 import com.haertibraeu.hopledger.data.model.BatchFillRequest
+import com.haertibraeu.hopledger.data.model.BatchSelfConsumeRequest
 import com.haertibraeu.hopledger.data.model.BatchSellRequest
 import com.haertibraeu.hopledger.data.model.Beer
 import com.haertibraeu.hopledger.data.model.BeerRequest
@@ -173,6 +174,9 @@ interface HopLedgerApi {
 
     @POST("api/actions/self-consume")
     suspend fun selfConsume(@Body body: SelfConsumeRequest): ActionResult
+
+    @POST("api/actions/batch-self-consume")
+    suspend fun batchSelfConsume(@Body body: BatchSelfConsumeRequest): BatchActionResult
 
     @POST("api/actions/container-return")
     suspend fun containerReturn(@Body body: ContainerReturnRequest): ActionResult

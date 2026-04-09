@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.haertibraeu.hopledger.data.api.HopLedgerApi
 import com.haertibraeu.hopledger.data.model.BatchContainerReturnRequest
 import com.haertibraeu.hopledger.data.model.BatchFillRequest
+import com.haertibraeu.hopledger.data.model.BatchSelfConsumeRequest
 import com.haertibraeu.hopledger.data.model.BatchSellRequest
 import com.haertibraeu.hopledger.data.model.Beer
 import com.haertibraeu.hopledger.data.model.Brewer
@@ -295,7 +296,7 @@ class InventoryViewModel @Inject constructor(
         val prefix = descriptionPrefix(group, ids.size)
         val brewerName = s.brewers.find { it.id == brewerId }?.name
         val desc = "$prefix – Eigenverbrauch${brewerName?.let { " von $it" } ?: ""}"
-        ids.forEach { api.selfConsume(SelfConsumeRequest(it, brewerId, desc)) }
+        api.batchSelfConsume(BatchSelfConsumeRequest(ids, brewerId, desc))
         dismissSheet()
     }
 

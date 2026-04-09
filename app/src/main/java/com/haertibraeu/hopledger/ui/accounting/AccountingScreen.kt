@@ -242,9 +242,11 @@ private fun EntryCard(entry: AccountEntry, onLongPress: () -> Unit) {
                 )
             }
             entry.description?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-            entry.brewer?.let {
-                Text(it.name, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
+            Text(
+                entry.brewer?.name ?: "Gelöschter Brauer",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }
