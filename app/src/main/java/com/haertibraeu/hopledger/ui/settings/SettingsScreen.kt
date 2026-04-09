@@ -310,6 +310,18 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
         )
     }
 
+    // Error dialog (e.g. failed delete due to FK constraints)
+    uiState.error?.let { errorMessage ->
+        AlertDialog(
+            onDismissRequest = viewModel::clearError,
+            title = { Text("Fehler") },
+            text = { Text(errorMessage) },
+            confirmButton = {
+                TextButton(onClick = viewModel::clearError) { Text("OK") }
+            },
+        )
+    }
+
     // Dialogs
     if (uiState.showAddBrewerDialog) AddBrewerDialog(viewModel)
     if (uiState.showAddBeerDialog) AddBeerDialog(viewModel)

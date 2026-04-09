@@ -64,7 +64,7 @@ import com.haertibraeu.hopledger.ui.theme.OnHopGreenContainerDark
 @Composable
 fun AccountingScreen(viewModel: AccountingViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsState()
-    var ausgleichExpanded by remember { mutableStateOf(true) }
+    var ausgleichExpanded by remember { mutableStateOf(false) }
 
     // Refresh every time this screen enters composition (tab switches, navigation back)
     LaunchedEffect(Unit) { viewModel.refresh() }
@@ -299,10 +299,11 @@ private fun SettlementsCard(
                     color = onContainerColor,
                 )
                 settlements.forEach { s ->
+                    val innerColor = if (isSystemInDarkTheme()) HopGreenContainerDark.copy(alpha = 0.5f) else HopGreenContainer.copy(alpha = 0.5f)
                     Surface(
                         onClick = { onSettle(s) },
                         shape = MaterialTheme.shapes.small,
-                        color = MaterialTheme.colorScheme.surface,
+                        color = innerColor,
                         modifier = Modifier.fillMaxWidth(),
                     ) {
                         Row(
@@ -315,12 +316,14 @@ private fun SettlementsCard(
                             Text(
                                 "${s.from.name}  →  ${s.to.name}",
                                 style = MaterialTheme.typography.bodyMedium,
+                                color = onContainerColor,
                                 modifier = Modifier.weight(1f),
                             )
                             Text(
                                 "${"%.2f".format(s.amount)} CHF",
                                 fontWeight = FontWeight.Bold,
                                 style = MaterialTheme.typography.bodyMedium,
+                                color = onContainerColor,
                             )
                         }
                     }

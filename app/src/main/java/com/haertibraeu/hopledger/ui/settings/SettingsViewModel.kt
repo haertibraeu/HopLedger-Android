@@ -261,6 +261,10 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun clearError() {
+        _uiState.update { it.copy(error = null) }
+    }
+
     fun addBeer(name: String, style: String?) {
         if (name.isBlank()) return
         viewModelScope.launch {
