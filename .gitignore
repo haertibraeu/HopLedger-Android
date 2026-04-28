@@ -13,3 +13,6 @@ local.properties
 
 # Java heap dumps
 *.hprof
+
+#emulator app backup
+/application.backup
