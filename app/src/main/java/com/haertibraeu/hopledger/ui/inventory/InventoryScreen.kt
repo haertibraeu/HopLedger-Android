@@ -452,8 +452,9 @@ private fun ContainerActionSheet(
     onDelete: (List<String>) -> Unit,
 ) {
     val container = group.sampleContainer
-    var quantity by remember { mutableIntStateOf(group.count) }
-    val ids = group.containerIds.take(quantity)
+    var selectedQuantity by remember { mutableIntStateOf(1) }
+    var totalQuantity by remember { mutableIntStateOf(group.count) }
+    val ids = group.containerIds.take(selectedQuantity)
 
     var showMove by remember { mutableStateOf(false) }
     var showFill by remember { mutableStateOf(false) }
@@ -484,19 +485,14 @@ private fun ContainerActionSheet(
                 if (group.count > 1) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         FilledTonalIconButton(
-                            onClick = { quantity = 1 },
-                            enabled = quantity > 1,
-                            modifier = Modifier.size(32.dp),
-                        ) { Text("1") }
-                        FilledTonalIconButton(
-                            onClick = { if (quantity > 1) quantity-- },
-                            enabled = quantity > 1,
+                            onClick = { if (selectedQuantity > 1) selectedQuantity-- },
+                            enabled = selectedQuantity > 1,
                             modifier = Modifier.size(32.dp),
                         ) { Text("−") }
-                        Text("$quantity", style = MaterialTheme.typography.titleMedium, modifier = Modifier.widthIn(min = 28.dp), textAlign = TextAlign.Center)
+                        Text("$selectedQuantity/$totalQuantity", style = MaterialTheme.typography.titleMedium, modifier = Modifier.widthIn(min = 28.dp), textAlign = TextAlign.Center)
                         FilledTonalIconButton(
-                            onClick = { if (quantity < group.count) quantity++ },
-                            enabled = quantity < group.count,
+                            onClick = { if (selectedQuantity < group.count) selectedQuantity++ },
+                            enabled = selectedQuantity < group.count,
                             modifier = Modifier.size(32.dp),
                         ) { Text("+") }
                     }
@@ -599,7 +595,7 @@ private fun ContainerActionSheet(
     }
 
     if (showDestroyBeerConfirm) {
-        val qLabel = if (quantity == 1) "diesem Gebinde" else "$quantity Gebinden"
+        val qLabel = if (selectedQuantity == 1) "diesem Gebinde" else "$selectedQuantity Gebinden"
         AlertDialog(
             onDismissRequest = { showDestroyBeerConfirm = false },
             title = { Text("Bier vernichten?") },
@@ -615,7 +611,7 @@ private fun ContainerActionSheet(
     }
 
     if (showDeleteConfirm) {
-        val qLabel = if (quantity == 1) "dieses Gebinde" else "diese $quantity Gebinde"
+        val qLabel = if (selectedQuantity == 1) "dieses Gebinde" else "diese $selectedQuantity Gebinde"
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
             title = { Text("Gebinde löschen?") },
