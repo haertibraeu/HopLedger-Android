@@ -119,7 +119,7 @@ fun InventoryScreen(viewModel: InventoryViewModel = hiltViewModel()) {
             containerTypes = uiState.containerTypes,
             locations = uiState.locations,
             beers = uiState.beers,
-            onConfirm = { ctId, locId, beerId, count -> viewModel.addContainer(ctId, locId, beerId, count) },
+            onConfirm = { ctId, locId, beerId, count, isByob, byobOwner -> viewModel.addContainer(ctId, locId, beerId, count, isByob, byobOwner) },
             onDismiss = viewModel::dismissAddDialog,
         )
     }
@@ -179,12 +179,14 @@ private fun FilterRow(
         StatusFilter.FULL -> "🍺"
         StatusFilter.EMPTY -> "🫙"
         StatusFilter.RESERVED -> "📋"
+        StatusFilter.BYOB -> "🧴"
     }
     val statusLabel = when (statusFilter) {
         StatusFilter.ALL -> "Status"
         StatusFilter.FULL -> "Gefüllt"
         StatusFilter.EMPTY -> "Leer"
         StatusFilter.RESERVED -> "Reserviert"
+        StatusFilter.BYOB -> "BYOB"
     }
     val locationName = locations.find { it.id == filterLocationId }?.name
     val beerName = beers.find { it.id == filterBeerId }?.name
@@ -208,6 +210,7 @@ private fun FilterRow(
                 StatusFilter.FULL to ("🍺" to "Gefüllt"),
                 StatusFilter.EMPTY to ("🫙" to "Leer"),
                 StatusFilter.RESERVED to ("📋" to "Reserviert"),
+                StatusFilter.BYOB to ("🧴" to "BYOB"),
             ).forEach { (f, pair) ->
                 val (emoji, name) = pair
                 DropdownMenuItem(
@@ -334,6 +337,7 @@ private fun ContainerGroupCard(group: ContainerGroup, onClick: () -> Unit) {
     val isEmpty = group.beer == null
 
     val cardColor = when {
+        group.isByob -> MaterialTheme.colorScheme.tertiaryContainer
         isReserved -> MaterialTheme.colorScheme.secondaryContainer
 
         // reserved: warm tint
@@ -353,8 +357,10 @@ private fun ContainerGroupCard(group: ContainerGroup, onClick: () -> Unit) {
                 if (group.count > 1) Badge { Text("×${group.count}") }
             }
             Spacer(Modifier.height(4.dp))
+            if (group.isByob) Text("🧴 BYOB", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary, maxLines = 1)
             Text(if (group.beer == null) "🫙 Leer" else "🍺 ${group.beer.name}", style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text("📍 ${group.location?.name ?: "?"}", style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (group.byobOwner != null) Text("👤 ${group.byobOwner}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (isReserved) Text("📋 ${group.reservedFor}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
     }
@@ -367,7 +373,7 @@ private fun AddContainerDialog(
     containerTypes: List<com.haertibraeu.hopledger.data.model.ContainerType>,
     locations: List<com.haertibraeu.hopledger.data.model.Location>,
     beers: List<com.haertibraeu.hopledger.data.model.Beer>,
-    onConfirm: (containerTypeId: String, locationId: String, beerId: String?, count: Int) -> Unit,
+    onConfirm: (containerTypeId: String, locationId: String, beerId: String?, count: Int, isByob: Boolean, byobOwner: String?) -> Unit,
     onDismiss: () -> Unit,
 ) {
     val defaultLocation = locations.firstOrNull { it.type == "brewery" } ?: locations.firstOrNull { it.type == "brewer" } ?: locations.firstOrNull()
@@ -375,6 +381,8 @@ private fun AddContainerDialog(
     var selectedLocationId by remember { mutableStateOf(defaultLocation?.id ?: "") }
     var selectedBeerId by remember { mutableStateOf("") }
     var countText by remember { mutableStateOf("1") }
+    var isByob by remember { mutableStateOf(false) }
+    var byobOwner by remember { mutableStateOf("") }
 
     val breweryLocations = locations.filter { it.type == "brewer" || it.type == "brewery" }
     val selectedTypeName = containerTypes.find { it.id == selectedTypeId }?.name ?: "Auswählen…"
@@ -400,12 +408,34 @@ private fun AddContainerDialog(
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                HorizontalDivider()
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("🧴 Bring Your Own Bottle (BYOB)", style = MaterialTheme.typography.labelLarge)
+                        Text("Kundeneigene Flasche – kein Pfand", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
+                    androidx.compose.material3.Switch(checked = isByob, onCheckedChange = { isByob = it })
+                }
+                if (isByob) {
+                    OutlinedTextField(
+                        value = byobOwner,
+                        onValueChange = { byobOwner = it },
+                        label = { Text("Eigentümer (Kundenname)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
             }
         },
         confirmButton = {
+            val isByobValid = !isByob || byobOwner.isNotBlank()
             TextButton(
-                onClick = { onConfirm(selectedTypeId, selectedLocationId, selectedBeerId.ifBlank { null }, countText.toIntOrNull() ?: 1) },
-                enabled = selectedTypeId.isNotBlank() && selectedLocationId.isNotBlank(),
+                onClick = { onConfirm(selectedTypeId, selectedLocationId, selectedBeerId.ifBlank { null }, countText.toIntOrNull() ?: 1, isByob, byobOwner.ifBlank { null }) },
+                enabled = selectedTypeId.isNotBlank() && selectedLocationId.isNotBlank() && isByobValid,
             ) { Text("Hinzufügen") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } },
@@ -476,11 +506,19 @@ private fun ContainerActionSheet(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween,
             ) {
-                Text(
-                    "${container.containerType?.name} · ${if (container.isEmpty) "Leer" else container.beer?.name ?: "?"}",
-                    style = MaterialTheme.typography.titleMedium,
-                    modifier = Modifier.weight(1f),
-                )
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        "${container.containerType?.name} · ${if (container.isEmpty) "Leer" else container.beer?.name ?: "?"}",
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    if (group.isByob) {
+                        Text(
+                            "🧴 BYOB – ${group.byobOwner ?: "Kein Eigentümer"} · Kein Pfand",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.tertiary,
+                        )
+                    }
+                }
                 if (group.count > 1) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         FilledTonalIconButton(
@@ -510,7 +548,7 @@ private fun ContainerActionSheet(
                 TextButton(onClick = { showFill = true }, modifier = Modifier.fillMaxWidth()) { Text("🍺 Befüllen") }
             }
 
-            if (!container.isEmpty && !container.isReserved) {
+            if (!container.isEmpty && !container.isReserved && !group.isByob) {
                 TextButton(onClick = { showReserve = true }, modifier = Modifier.fillMaxWidth()) { Text("📋 Reservieren") }
             }
             if (container.isReserved) {
@@ -520,11 +558,18 @@ private fun ContainerActionSheet(
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
             if (!container.isEmpty) {
-                TextButton(onClick = { showSell = true }, modifier = Modifier.fillMaxWidth()) { Text("💰 Verkaufen (${container.containerType?.externalPrice ?: 0} + ${container.containerType?.depositFee ?: 0} CHF)") }
+                val sellLabel = if (group.isByob) {
+                    "💰 An Eigentümer aushändigen (${container.containerType?.externalPrice ?: 0} CHF – kein Pfand)"
+                } else {
+                    "💰 Verkaufen (${container.containerType?.externalPrice ?: 0} + ${container.containerType?.depositFee ?: 0} CHF)"
+                }
+                TextButton(onClick = { showSell = true }, modifier = Modifier.fillMaxWidth()) { Text(sellLabel) }
                 TextButton(onClick = { showConsume = true }, modifier = Modifier.fillMaxWidth()) { Text("🍻 Eigenverbrauch (${container.containerType?.internalPrice ?: 0} CHF)") }
             }
 
-            TextButton(onClick = { showReturn = true }, modifier = Modifier.fillMaxWidth()) { Text("↩️ Rückgabe (${container.containerType?.depositFee ?: 0} CHF Pfand)") }
+            if (!group.isByob) {
+                TextButton(onClick = { showReturn = true }, modifier = Modifier.fillMaxWidth()) { Text("↩️ Rückgabe (${container.containerType?.depositFee ?: 0} CHF Pfand)") }
+            }
 
             // ── Danger zone ───────────────────────────────────────────────
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
@@ -576,7 +621,8 @@ private fun ContainerActionSheet(
 
     if (showSell) {
         SellDialog(
-            reservedFor = container.reservedFor,
+            reservedFor = container.reservedFor ?: group.byobOwner,
+            isByob = group.isByob,
             brewers = brewers,
             onConfirm = { brewerId, customerName ->
                 onSell(ids, brewerId, customerName)
@@ -634,6 +680,7 @@ private fun ContainerActionSheet(
 @Composable
 private fun SellDialog(
     reservedFor: String?,
+    isByob: Boolean = false,
     brewers: List<com.haertibraeu.hopledger.data.model.Brewer>,
     onConfirm: (brewerId: String, customerName: String) -> Unit,
     onDismiss: () -> Unit,
@@ -643,7 +690,7 @@ private fun SellDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("💰 Verkaufen") },
+        title = { Text(if (isByob) "🧴 An Eigentümer aushändigen" else "💰 Verkaufen") },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
@@ -657,8 +704,14 @@ private fun SellDialog(
                     }
                 }
                 HorizontalDivider()
-                Text("Kunde", style = MaterialTheme.typography.labelLarge)
-                if (reservedFor != null) {
+                Text(if (isByob) "Eigentümer" else "Kunde", style = MaterialTheme.typography.labelLarge)
+                if (isByob && reservedFor != null) {
+                    Text(
+                        "🧴 BYOB – Eigentümer: $reservedFor · Kein Pfand",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.tertiary,
+                    )
+                } else if (!isByob && reservedFor != null) {
                     Text(
                         "📋 Reserviert für: $reservedFor",
                         style = MaterialTheme.typography.bodyMedium,
@@ -668,7 +721,7 @@ private fun SellDialog(
                     OutlinedTextField(
                         value = customerName,
                         onValueChange = { customerName = it },
-                        label = { Text("Kundenname") },
+                        label = { Text(if (isByob) "Eigentümer" else "Kundenname") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -679,7 +732,7 @@ private fun SellDialog(
             TextButton(
                 onClick = { if (selectedBrewerId.isNotBlank() && customerName.isNotBlank()) onConfirm(selectedBrewerId, customerName) },
                 enabled = selectedBrewerId.isNotBlank() && customerName.isNotBlank(),
-            ) { Text("Verkaufen") }
+            ) { Text(if (isByob) "Aushändigen" else "Verkaufen") }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } },
     )

@@ -29,13 +29,15 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-enum class StatusFilter { ALL, FULL, EMPTY, RESERVED }
+enum class StatusFilter { ALL, FULL, EMPTY, RESERVED, BYOB }
 
 data class ContainerGroup(
     val containerTypeId: String,
     val beerId: String?,
     val locationId: String,
     val reservedFor: String?,
+    val isByob: Boolean,
+    val byobOwner: String?,
     val containerType: ContainerType?,
     val beer: Beer?,
     val location: Location?,
@@ -87,9 +89,11 @@ class InventoryViewModel @Inject constructor(
                     else -> null
                 }
                 val isReserved = if (s.statusFilter == StatusFilter.RESERVED) true else null
+                val isByob = if (s.statusFilter == StatusFilter.BYOB) true else null
                 val containers = api.getContainers(
                     isEmpty = isEmpty,
                     isReserved = isReserved,
+                    isByob = isByob,
                     locationId = s.filterLocationId,
                     beerId = s.filterBeerId,
                 )
@@ -131,9 +135,25 @@ class InventoryViewModel @Inject constructor(
         }
     }
 
-    // Group by type + beer + location + who reserved (each unique reservation is its own card)
+    // Group by type + beer + location + who reserved + byob ownership (each unique combination is its own card)
+    private data class ContainerGroupKey(
+        val containerTypeId: String,
+        val beerId: String?,
+        val locationId: String,
+        val reservedFor: String?,
+        val byobOwner: String?,
+    )
+
     private fun groupContainers(containers: List<Container>): List<ContainerGroup> = containers
-        .groupBy { Pair(Triple(it.containerTypeId, it.beerId, it.locationId), it.reservedFor) }
+        .groupBy {
+            ContainerGroupKey(
+                containerTypeId = it.containerTypeId,
+                beerId = it.beerId,
+                locationId = it.locationId,
+                reservedFor = it.reservedFor,
+                byobOwner = it.byobOwner,
+            )
+        }
         .map { (_, group) ->
             val s = group.first()
             ContainerGroup(
@@ -141,6 +161,8 @@ class InventoryViewModel @Inject constructor(
                 beerId = s.beerId,
                 locationId = s.locationId,
                 reservedFor = s.reservedFor,
+                isByob = s.isByob,
+                byobOwner = s.byobOwner,
                 containerType = s.containerType,
                 beer = s.beer,
                 location = s.location,
@@ -149,7 +171,7 @@ class InventoryViewModel @Inject constructor(
                 containerIds = group.map { it.id },
             )
         }
-        .sortedWith(compareBy({ it.containerType?.name }, { it.beer?.name }, { it.reservedFor }))
+        .sortedWith(compareBy({ it.containerType?.name }, { it.beer?.name }, { it.reservedFor }, { it.byobOwner }))
 
     fun setStatusFilter(f: StatusFilter) {
         _uiState.update { it.copy(statusFilter = f) }
@@ -181,12 +203,12 @@ class InventoryViewModel @Inject constructor(
         _uiState.update { it.copy(showAddDialog = false) }
     }
 
-    fun addContainer(containerTypeId: String, locationId: String, beerId: String?, count: Int = 1) {
+    fun addContainer(containerTypeId: String, locationId: String, beerId: String?, count: Int = 1, isByob: Boolean = false, byobOwner: String? = null) {
         viewModelScope.launch {
             sync.startSync()
             try {
                 repeat(count.coerceIn(1, 50)) {
-                    api.createContainer(ContainerCreateRequest(containerTypeId, locationId, beerId))
+                    api.createContainer(ContainerCreateRequest(containerTypeId, locationId, beerId, isByob, byobOwner))
                 }
                 dismissAddDialog()
                 sync.endSync()
@@ -285,7 +307,8 @@ class InventoryViewModel @Inject constructor(
         val group = s.selectedGroup
         val prefix = descriptionPrefix(group, ids.size)
         val brewerName = s.brewers.find { it.id == brewerId }?.name
-        val desc = "$prefix an $customerName verkauft${brewerName?.let { " ($it)" } ?: ""}"
+        val byobNote = if (group?.isByob == true) " (BYOB – kein Pfand)" else ""
+        val desc = "$prefix an $customerName verkauft${brewerName?.let { " ($it)" } ?: ""}$byobNote"
         api.batchSell(BatchSellRequest(ids, brewerId, locationId, desc))
         dismissSheet()
     }
