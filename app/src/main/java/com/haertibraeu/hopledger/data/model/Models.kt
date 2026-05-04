@@ -2,6 +2,7 @@ package com.haertibraeu.hopledger.data.model
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlin.time.Instant
 
 // --- Responses ---
 @Serializable
@@ -58,7 +59,7 @@ data class AccountEntry(
     val description: String? = null,
     @SerialName("categoryId") val categoryId: String? = null,
     val category: Category? = null,
-    @SerialName("createdAt") val createdAt: String,
+    @SerialName("createdAt") val createdAt: Instant,
 )
 
 @Serializable

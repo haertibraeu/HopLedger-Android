@@ -49,6 +49,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -59,6 +60,10 @@ import com.haertibraeu.hopledger.ui.theme.HopGreenContainer
 import com.haertibraeu.hopledger.ui.theme.HopGreenContainerDark
 import com.haertibraeu.hopledger.ui.theme.OnHopGreenContainer
 import com.haertibraeu.hopledger.ui.theme.OnHopGreenContainerDark
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
+import kotlin.time.toJavaInstant
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -242,11 +247,21 @@ private fun EntryCard(entry: AccountEntry, onLongPress: () -> Unit) {
                 )
             }
             entry.description?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-            Text(
-                entry.brewer?.name ?: "Gelöschter Brauer",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(
+                    entry.brewer?.name ?: "Gelöschter Brauer",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    entry.createdAt.toJavaInstant().atZone(ZoneId.systemDefault()).format(
+                        DateTimeFormatter.ofLocalizedDateTime(FormatStyle.LONG, FormatStyle.SHORT),
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.End,
+                )
+            }
         }
     }
 }
