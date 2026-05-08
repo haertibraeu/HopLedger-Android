@@ -62,7 +62,7 @@ class SettingsViewModel @Inject constructor(
     private val api: HopLedgerApi,
     private val settings: SettingsRepository,
     private val sync: SyncRepository,
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
