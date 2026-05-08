@@ -147,3 +147,11 @@ data class Category(val id: String, val name: String, val type: String = "income
 
 @Serializable
 data class CategoryRequest(val name: String, val type: String)
+
+@Serializable
+data class BackendProfile(
+    val id: String,
+    val name: String,
+    val url: String,
+    val apiKey: String = "",
+)

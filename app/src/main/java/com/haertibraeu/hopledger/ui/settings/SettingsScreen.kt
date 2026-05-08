@@ -242,6 +242,28 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                         IconButton(onClick = viewModel::showQr) {
                             Icon(Icons.Default.QrCode2, contentDescription = "QR-Code anzeigen")
                         }
+                        IconButton(onClick = viewModel::showAddProfile) {
+                            Icon(Icons.Default.Add, contentDescription = "Als Profil speichern")
+                        }
+                    }
+                    if (uiState.backendProfiles.isNotEmpty()) {
+                        Text("Gespeicherte Profile", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            uiState.backendProfiles.forEach { profile ->
+                                FilterChip(
+                                    selected = uiState.backendUrl == profile.url && uiState.apiKey == profile.apiKey,
+                                    onClick = { viewModel.selectProfile(profile) },
+                                    label = { Text(profile.name) },
+                                    trailingIcon = {
+                                        Icon(
+                                            Icons.Default.Delete,
+                                            contentDescription = "Löschen",
+                                            modifier = Modifier.size(16.dp).clickable { viewModel.deleteProfile(profile.id) },
+                                        )
+                                    },
+                                )
+                            }
+                        }
                     }
                     if (uiState.healthStatus.isNotEmpty()) {
                         Text(
@@ -328,6 +350,7 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
     if (uiState.showAddLocationDialog) AddLocationDialog(viewModel)
     if (uiState.showAddContainerTypeDialog) AddContainerTypeDialog(viewModel)
     if (uiState.showAddCategoryDialog) AddCategoryDialog(viewModel)
+    if (uiState.showAddProfileDialog) AddProfileDialog(viewModel)
     uiState.editingContainerType?.let { EditContainerTypeDialog(it, viewModel) }
     if (uiState.showQrDialog) QrDialog(url = uiState.backendUrl, apiKey = uiState.apiKey, onDismiss = viewModel::dismissQr)
 
@@ -590,6 +613,34 @@ private fun AddCategoryDialog(viewModel: SettingsViewModel) {
             }
         },
         confirmButton = { TextButton(onClick = { viewModel.addCategory(name, type) }, enabled = name.isNotBlank()) { Text("Hinzufügen") } },
+        dismissButton = { TextButton(onClick = viewModel::dismissDialogs) { Text("Abbrechen") } },
+    )
+}
+
+@Composable
+private fun AddProfileDialog(viewModel: SettingsViewModel) {
+    val uiState by viewModel.uiState.collectAsState()
+    var name by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = viewModel::dismissDialogs,
+        title = { Text("Verbindungsprofil speichern") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Speichere aktuelle URL und API-Key unter einem Namen.")
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Profilname (z.B. Produktion, Lokal)") },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { viewModel.addProfile(name, uiState.backendUrl, uiState.apiKey) },
+                enabled = name.isNotBlank(),
+            ) { Text("Speichern") }
+        },
         dismissButton = { TextButton(onClick = viewModel::dismissDialogs) { Text("Abbrechen") } },
     )
 }

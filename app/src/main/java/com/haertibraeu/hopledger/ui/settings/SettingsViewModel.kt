@@ -8,6 +8,7 @@ import android.provider.MediaStore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.haertibraeu.hopledger.data.api.HopLedgerApi
+import com.haertibraeu.hopledger.data.model.BackendProfile
 import com.haertibraeu.hopledger.data.model.Beer
 import com.haertibraeu.hopledger.data.model.BeerRequest
 import com.haertibraeu.hopledger.data.model.Brewer
@@ -36,6 +37,7 @@ import javax.inject.Inject
 data class SettingsUiState(
     val backendUrl: String = SettingsRepository.DEFAULT_BACKEND_URL,
     val apiKey: String = "",
+    val backendProfiles: List<BackendProfile> = emptyList(),
     val healthStatus: String = "",
     val healthOk: Boolean = false,
     val brewers: List<Brewer> = emptyList(),
@@ -48,6 +50,7 @@ data class SettingsUiState(
     val showAddLocationDialog: Boolean = false,
     val showAddContainerTypeDialog: Boolean = false,
     val showAddCategoryDialog: Boolean = false,
+    val showAddProfileDialog: Boolean = false,
     val editingContainerType: ContainerType? = null,
     val error: String? = null,
     val connectionExpanded: Boolean = false,
@@ -74,6 +77,9 @@ class SettingsViewModel @Inject constructor(
         }
         viewModelScope.launch {
             settings.apiKey.collect { key -> _uiState.update { it.copy(apiKey = key) } }
+        }
+        viewModelScope.launch {
+            settings.backendProfiles.collect { profiles -> _uiState.update { it.copy(backendProfiles = profiles) } }
         }
         refreshAll()
     }
@@ -223,11 +229,35 @@ class SettingsViewModel @Inject constructor(
     fun showAddCategory() {
         _uiState.update { it.copy(showAddCategoryDialog = true) }
     }
+    fun showAddProfile() {
+        _uiState.update { it.copy(showAddProfileDialog = true) }
+    }
     fun showEditContainerType(ct: ContainerType) {
         _uiState.update { it.copy(editingContainerType = ct) }
     }
     fun dismissDialogs() {
-        _uiState.update { it.copy(showAddBrewerDialog = false, showAddBeerDialog = false, showAddLocationDialog = false, showAddContainerTypeDialog = false, showAddCategoryDialog = false, editingContainerType = null) }
+        _uiState.update { it.copy(showAddBrewerDialog = false, showAddBeerDialog = false, showAddLocationDialog = false, showAddContainerTypeDialog = false, showAddCategoryDialog = false, showAddProfileDialog = false, editingContainerType = null) }
+    }
+
+    // CRUD operations
+    fun addProfile(name: String, url: String, apiKey: String) {
+        viewModelScope.launch {
+            settings.addBackendProfile(name, url, apiKey)
+            dismissDialogs()
+        }
+    }
+
+    fun deleteProfile(id: String) {
+        viewModelScope.launch {
+            settings.deleteBackendProfile(id)
+        }
+    }
+
+    fun selectProfile(profile: BackendProfile) {
+        viewModelScope.launch {
+            settings.selectBackendProfile(profile)
+            refreshAll()
+        }
     }
 
     // CRUD operations
