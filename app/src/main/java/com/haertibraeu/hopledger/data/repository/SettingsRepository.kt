@@ -7,7 +7,6 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import com.haertibraeu.hopledger.data.model.BackendProfile
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
-import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.util.UUID
 import javax.inject.Inject
@@ -32,7 +31,7 @@ class SettingsRepository @Inject constructor(
         val jsonString = prefs[BACKEND_PROFILES_KEY] ?: "[]"
         try {
             json.decodeFromString<List<BackendProfile>>(jsonString)
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             emptyList()
         }
     }
