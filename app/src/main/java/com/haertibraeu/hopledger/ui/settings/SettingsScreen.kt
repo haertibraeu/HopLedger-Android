@@ -248,17 +248,24 @@ fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
                     }
                     if (uiState.backendProfiles.isNotEmpty()) {
                         Text("Gespeicherte Profile", style = MaterialTheme.typography.labelLarge, modifier = Modifier.padding(top = 8.dp))
-                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             uiState.backendProfiles.forEach { profile ->
                                 FilterChip(
+                                    modifier = Modifier.height(44.dp),
                                     selected = uiState.backendUrl == profile.url && uiState.apiKey == profile.apiKey,
                                     onClick = { viewModel.selectProfile(profile) },
-                                    label = { Text(profile.name) },
+                                    label = { Text(profile.name, style = MaterialTheme.typography.bodyLarge) },
                                     trailingIcon = {
                                         Icon(
                                             Icons.Default.Delete,
                                             contentDescription = "Löschen",
-                                            modifier = Modifier.size(16.dp).clickable { viewModel.deleteProfile(profile.id) },
+                                            modifier = Modifier
+                                                .size(24.dp)
+                                                .clickable {
+                                                    pendingDelete = "Profil \"${profile.name}\" wirklich löschen?" to { viewModel.deleteProfile(profile.id) }
+                                                }
+                                                .padding(4.dp),
+                                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
                                         )
                                     },
                                 )
