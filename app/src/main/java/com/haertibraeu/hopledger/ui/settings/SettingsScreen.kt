@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
@@ -55,6 +56,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -63,6 +65,7 @@ import com.haertibraeu.hopledger.R
 import com.haertibraeu.hopledger.data.model.ContainerType
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
+import java.util.Objects.isNull
 
 @Composable
 fun SettingsScreen(viewModel: SettingsViewModel = hiltViewModel()) {
@@ -458,10 +461,10 @@ private fun EditContainerTypeDialog(ct: ContainerType, viewModel: SettingsViewMo
         title = { Text("Gebindetyp bearbeiten") },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = externalPrice, onValueChange = { externalPrice = it }, label = { Text("Verkaufspreis (CHF)") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = internalPrice, onValueChange = { internalPrice = it }, label = { Text("Eigenverbrauch (CHF)") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(value = depositFee, onValueChange = { depositFee = it }, label = { Text("Pfand (CHF)") }, modifier = Modifier.fillMaxWidth())
+                ValidatingTextInputField(value = name, onValueChange = { name = it }, label = "Name (z.B. 0.5l Flasche)")
+                ValidatingDecimalInputField(value = externalPrice, onValueChange = { externalPrice = it }, label = "Verkaufspreis (CHF)")
+                ValidatingDecimalInputField(value = internalPrice, onValueChange = { internalPrice = it }, label = "Eigenverbrauch (CHF)")
+                ValidatingDecimalInputField(value = depositFee, onValueChange = { depositFee = it }, label = "Pfand (CHF)")
             }
         },
         confirmButton = {
@@ -469,7 +472,7 @@ private fun EditContainerTypeDialog(ct: ContainerType, viewModel: SettingsViewMo
                 onClick = {
                     viewModel.updateContainerType(
                         ct.id,
-                        name,
+                        name.trim(),
                         externalPrice.toDoubleOrNull() ?: ct.externalPrice,
                         internalPrice.toDoubleOrNull() ?: ct.internalPrice,
                         depositFee.toDoubleOrNull() ?: ct.depositFee,
@@ -586,18 +589,60 @@ private fun AddContainerTypeDialog(viewModel: SettingsViewModel) {
         title = { Text("Gebindetyp hinzufügen") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name (z.B. 0.5l Flasche)") })
-                OutlinedTextField(value = externalPrice, onValueChange = { externalPrice = it }, label = { Text("Verkaufspreis (CHF)") })
-                OutlinedTextField(value = internalPrice, onValueChange = { internalPrice = it }, label = { Text("Eigenverbrauch (CHF)") })
-                OutlinedTextField(value = depositFee, onValueChange = { depositFee = it }, label = { Text("Pfand (CHF)") })
+                ValidatingTextInputField(value = name, onValueChange = { name = it }, label = "Name (z.B. 0.5l Flasche)")
+                ValidatingDecimalInputField(value = externalPrice, onValueChange = { externalPrice = it }, label = "Verkaufspreis (CHF)")
+                ValidatingDecimalInputField(value = internalPrice, onValueChange = { internalPrice = it }, label = "Eigenverbrauch (CHF)")
+                ValidatingDecimalInputField(value = depositFee, onValueChange = { depositFee = it }, label = "Pfand (CHF)")
             }
         },
         confirmButton = {
             TextButton(onClick = {
-                viewModel.addContainerType(name, externalPrice.toDoubleOrNull() ?: 0.0, internalPrice.toDoubleOrNull() ?: 0.0, depositFee.toDoubleOrNull() ?: 0.0)
+                viewModel.addContainerType(name.trim(), externalPrice.toDoubleOrNull() ?: 0.0, internalPrice.toDoubleOrNull() ?: 0.0, depositFee.toDoubleOrNull() ?: 0.0)
             }) { Text("Hinzufügen") }
         },
         dismissButton = { TextButton(onClick = viewModel::dismissDialogs) { Text("Abbrechen") } },
+    )
+}
+
+@Composable
+fun ValidatingDecimalInputField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    notValid: Boolean = isNull(value.toDoubleOrNull()),
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+        label = { Text(label) },
+        isError = notValid,
+        supportingText = {
+            if (notValid) {
+                Text("Muss eine gültige Dezimalzahl sein")
+            }
+        },
+    )
+}
+
+@Composable
+fun ValidatingTextInputField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    notValid: Boolean = value.isBlank(),
+) {
+    OutlinedTextField(
+        value = value,
+        onValueChange = onValueChange,
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
+        label = { Text(label) },
+        isError = notValid,
+        supportingText = {
+            if (notValid) {
+                Text("Darf nicht leer sein")
+            }
+        },
     )
 }
 
