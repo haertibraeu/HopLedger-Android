@@ -56,6 +56,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -334,13 +336,14 @@ private fun ContainerGroupCard(group: ContainerGroup, onClick: () -> Unit) {
     val isEmpty = group.beer == null
 
     val cardColor = when {
+        // reserved: warm tint
         isReserved -> MaterialTheme.colorScheme.secondaryContainer
 
-        // reserved: warm tint
+        // empty: muted neutral
         isEmpty -> MaterialTheme.colorScheme.surfaceVariant
 
-        // empty: muted neutral
-        else -> MaterialTheme.colorScheme.primaryContainer // full: primary tint
+        // full: primary tint
+        else -> MaterialTheme.colorScheme.primaryContainer
     }
 
     Card(
@@ -350,7 +353,19 @@ private fun ContainerGroupCard(group: ContainerGroup, onClick: () -> Unit) {
         Column(modifier = Modifier.padding(10.dp)) {
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
                 Text(group.containerType?.name ?: "?", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f), maxLines = 2, overflow = TextOverflow.Ellipsis)
-                Badge { Text("×${group.count}") }
+
+                val countFraction = ((group.count - 1) / 15f).coerceIn(0f, 1f) // 15 and over = full red
+                val badgeAccent = Color(255, 50, 50, 178)
+                val badgeBackground = MaterialTheme.colorScheme.tertiaryContainer
+                val badgeContainerColor = remember(badgeAccent, badgeBackground, countFraction) {
+                    lerp(badgeBackground, badgeAccent, countFraction)
+                }
+                val badgeContentColor = if (countFraction > 0.4f) MaterialTheme.colorScheme.onTertiary else MaterialTheme.colorScheme.onTertiaryContainer
+
+                Badge(
+                    containerColor = badgeContainerColor,
+                    contentColor = badgeContentColor
+                ) { Text("×${group.count}") }
             }
             Spacer(Modifier.height(4.dp))
             Text(if (group.beer == null) "🫙 Leer" else "🍺 ${group.beer.name}", style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
