@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -61,6 +62,7 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 
@@ -95,15 +97,17 @@ fun InventoryScreen(viewModel: InventoryViewModel = hiltViewModel()) {
                     Text("Keine Gebinde gefunden", style = MaterialTheme.typography.bodyLarge)
                 }
             } else {
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
-                    contentPadding = PaddingValues(8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxSize(),
-                ) {
-                    items(uiState.groups, key = { "${it.containerTypeId}_${it.beerId}_${it.locationId}_${it.reservedFor}" }) { group ->
-                        ContainerGroupCard(group) { viewModel.selectGroup(group) }
+                BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                    LazyVerticalGrid(
+                        columns = inventoryGridCells(maxWidth),
+                        contentPadding = PaddingValues(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxSize(),
+                    ) {
+                        items(uiState.groups, key = { "${it.containerTypeId}_${it.beerId}_${it.locationId}_${it.reservedFor}" }) { group ->
+                            ContainerGroupCard(group) { viewModel.selectGroup(group) }
+                        }
                     }
                 }
             }
@@ -144,6 +148,12 @@ fun InventoryScreen(viewModel: InventoryViewModel = hiltViewModel()) {
             onDelete = { ids -> viewModel.batchDelete(ids) },
         )
     }
+}
+
+private fun inventoryGridCells(width: Dp): GridCells = when {
+    width < 360.dp -> GridCells.Fixed(1)
+    width < 600.dp -> GridCells.Fixed(2)
+    else -> GridCells.Adaptive(minSize = 220.dp)
 }
 
 private val breweryLocationTypes = setOf("brewer", "brewery")
