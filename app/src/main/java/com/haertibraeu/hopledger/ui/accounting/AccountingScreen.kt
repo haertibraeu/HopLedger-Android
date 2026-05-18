@@ -57,7 +57,7 @@ import com.haertibraeu.hopledger.data.model.AccountEntry
 import com.haertibraeu.hopledger.data.model.Balance
 import com.haertibraeu.hopledger.data.model.Settlement
 import com.haertibraeu.hopledger.ui.components.DialogActionButton
-import com.haertibraeu.hopledger.ui.components.DialogMutationMessage
+import com.haertibraeu.hopledger.ui.components.DialogErrorMessage
 import com.haertibraeu.hopledger.ui.theme.HopGreenContainer
 import com.haertibraeu.hopledger.ui.theme.HopGreenContainerDark
 import com.haertibraeu.hopledger.ui.theme.OnHopGreenContainer
@@ -300,7 +300,7 @@ private fun DeleteEntryDialog(
                     "${entry.category?.name ?: entryTypeLabel(entry.type)}: ${"%.2f".format(entry.amount)} CHF" +
                         (entry.description?.let { "\n$it" } ?: ""),
                 )
-                errorMessage?.let { DialogMutationMessage(it) }
+                errorMessage?.let { DialogErrorMessage(it) }
             }
         },
         confirmButton = {
@@ -432,7 +432,7 @@ private fun BookSettlementDialog(
                     "${settlement.from.name} zahlt ${"%.2f".format(settlement.amount)} CHF an ${settlement.to.name}.\n\n" +
                         "Dies wird als neue Buchung erfasst.",
                 )
-                errorMessage?.let { DialogMutationMessage(it) }
+                errorMessage?.let { DialogErrorMessage(it) }
             }
         },
         confirmButton = {
@@ -520,7 +520,7 @@ private fun ManualEntryDialog(viewModel: AccountingViewModel) {
                     enabled = !isSubmitting,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                uiState.dialogError?.let { DialogMutationMessage(it) }
+                uiState.dialogError?.let { DialogErrorMessage(it) }
             }
         },
         confirmButton = {

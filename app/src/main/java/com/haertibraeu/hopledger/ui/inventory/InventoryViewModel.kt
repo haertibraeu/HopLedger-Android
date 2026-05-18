@@ -206,17 +206,16 @@ class InventoryViewModel @Inject constructor(
     }
 
     fun addContainer(containerTypeId: String, locationId: String, beerId: String?, count: Int = 1) {
-        if (!beginDialogMutation(InventoryDialogAction.ADD_CONTAINER)) return
+        if (!beginDialogAction(InventoryDialogAction.ADD_CONTAINER)) return
         viewModelScope.launch {
             try {
                 repeat(count.coerceIn(1, 50)) {
                     api.createContainer(ContainerCreateRequest(containerTypeId, locationId, beerId))
                 }
-                closeAddDialog()
-                completeDialogMutation()
+                completeDialogAction { copy(showAddDialog = false) }
                 refresh()
             } catch (e: Exception) {
-                failDialogMutation(e.message)
+                failDialogAction(e.message)
             }
         }
     }
@@ -225,53 +224,44 @@ class InventoryViewModel @Inject constructor(
         actionId: InventoryDialogAction,
         action: suspend () -> Unit,
     ) {
-        if (!beginDialogMutation(actionId)) return
+        if (!beginDialogAction(actionId)) return
         viewModelScope.launch {
             try {
                 action()
-                completeDialogMutation()
+                completeDialogAction { copy(showActionSheet = false, selectedContainer = null, selectedGroup = null) }
                 refresh()
             } catch (e: Exception) {
-                failDialogMutation(e.message)
+                failDialogAction(e.message)
             }
         }
     }
 
     fun deleteContainer(id: String) = containerAction(InventoryDialogAction.DELETE) {
         api.deleteContainer(id)
-        closeSheet()
     }
     fun moveContainer(id: String, locationId: String) = containerAction(InventoryDialogAction.MOVE) {
         api.moveContainer(id, MoveRequest(locationId))
-        closeSheet()
     }
     fun fillContainer(id: String, beerId: String) = containerAction(InventoryDialogAction.FILL) {
         api.fillContainer(id, FillRequest(beerId))
-        closeSheet()
     }
     fun destroyBeer(id: String) = containerAction(InventoryDialogAction.DESTROY_BEER) {
         api.destroyBeer(id)
-        closeSheet()
     }
     fun reserveContainer(id: String, customerName: String) = containerAction(InventoryDialogAction.RESERVE) {
         api.reserveContainer(id, ReserveRequest(customerName))
-        closeSheet()
     }
     fun unreserveContainer(id: String) = containerAction(InventoryDialogAction.UNRESERVE) {
         api.unreserveContainer(id)
-        closeSheet()
     }
     fun sell(containerId: String, brewerId: String, customerLocationId: String) = containerAction(InventoryDialogAction.SELL) {
         api.sell(SellRequest(containerId, brewerId, customerLocationId))
-        closeSheet()
     }
     fun selfConsume(containerId: String, brewerId: String) = containerAction(InventoryDialogAction.SELF_CONSUME) {
         api.selfConsume(SelfConsumeRequest(containerId, brewerId))
-        closeSheet()
     }
     fun containerReturn(containerId: String, brewerId: String, returnLocationId: String) = containerAction(InventoryDialogAction.RETURN) {
         api.containerReturn(ContainerReturnRequest(containerId, brewerId, returnLocationId))
-        closeSheet()
     }
     fun batchFill(containerIds: List<String>, beerId: String) = containerAction(InventoryDialogAction.FILL) {
         api.batchFill(BatchFillRequest(containerIds, beerId))
@@ -279,27 +269,21 @@ class InventoryViewModel @Inject constructor(
 
     fun batchMove(ids: List<String>, locationId: String) = containerAction(InventoryDialogAction.MOVE) {
         ids.forEach { api.moveContainer(it, MoveRequest(locationId)) }
-        closeSheet()
     }
     fun batchFillContainers(ids: List<String>, beerId: String) = containerAction(InventoryDialogAction.FILL) {
         ids.forEach { api.fillContainer(it, FillRequest(beerId)) }
-        closeSheet()
     }
     fun batchDestroyBeer(ids: List<String>) = containerAction(InventoryDialogAction.DESTROY_BEER) {
         ids.forEach { api.destroyBeer(it) }
-        closeSheet()
     }
     fun batchDelete(ids: List<String>) = containerAction(InventoryDialogAction.DELETE) {
         ids.forEach { api.deleteContainer(it) }
-        closeSheet()
     }
     fun batchReserve(ids: List<String>, customerName: String) = containerAction(InventoryDialogAction.RESERVE) {
         ids.forEach { api.reserveContainer(it, ReserveRequest(customerName)) }
-        closeSheet()
     }
     fun batchUnreserve(ids: List<String>) = containerAction(InventoryDialogAction.UNRESERVE) {
         ids.forEach { api.unreserveContainer(it) }
-        closeSheet()
     }
 
     /** Find-or-create a customer location named [customerName], then sell all [ids] in a single transaction. */
@@ -314,7 +298,6 @@ class InventoryViewModel @Inject constructor(
         val brewerName = s.brewers.find { it.id == brewerId }?.name
         val desc = "$prefix an $customerName verkauft${brewerName?.let { " ($it)" } ?: ""}"
         api.batchSell(BatchSellRequest(ids, brewerId, locationId, desc))
-        closeSheet()
     }
 
     fun batchSelfConsume(ids: List<String>, brewerId: String) = containerAction(InventoryDialogAction.SELF_CONSUME) {
@@ -324,7 +307,6 @@ class InventoryViewModel @Inject constructor(
         val brewerName = s.brewers.find { it.id == brewerId }?.name
         val desc = "$prefix – Eigenverbrauch${brewerName?.let { " von $it" } ?: ""}"
         api.batchSelfConsume(BatchSelfConsumeRequest(ids, brewerId, desc))
-        closeSheet()
     }
 
     fun batchReturn(ids: List<String>, brewerId: String, returnLocationId: String) = containerAction(InventoryDialogAction.RETURN) {
@@ -335,7 +317,6 @@ class InventoryViewModel @Inject constructor(
         val customerLocationName = group?.location?.name ?: "Kunde"
         val desc = "$prefix – Pfandrückgabe von $customerLocationName${locationName?.let { " → $it" } ?: ""}"
         api.batchContainerReturn(BatchContainerReturnRequest(ids, brewerId, returnLocationId, desc))
-        closeSheet()
     }
 
     private fun descriptionPrefix(group: ContainerGroup?, count: Int): String {
@@ -345,19 +326,19 @@ class InventoryViewModel @Inject constructor(
         return if (beerName != null) "$qty$typeName ($beerName)" else "$qty$typeName"
     }
 
-    private fun beginDialogMutation(action: InventoryDialogAction): Boolean {
+    private fun beginDialogAction(action: InventoryDialogAction): Boolean {
         if (_uiState.value.submittingAction != null) return false
         _uiState.update { it.copy(submittingAction = action, dialogError = null) }
         sync.startSync()
         return true
     }
 
-    private fun completeDialogMutation() {
-        _uiState.update { it.copy(submittingAction = null, dialogError = null) }
+    private fun completeDialogAction(close: InventoryUiState.() -> InventoryUiState = { this }) {
+        _uiState.update { it.close().copy(submittingAction = null, dialogError = null) }
         sync.endSync()
     }
 
-    private fun failDialogMutation(message: String?) {
+    private fun failDialogAction(message: String?) {
         _uiState.update { it.copy(submittingAction = null, dialogError = message) }
         sync.endSync(message)
     }

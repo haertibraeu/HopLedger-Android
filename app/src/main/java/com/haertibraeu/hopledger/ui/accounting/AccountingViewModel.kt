@@ -91,15 +91,14 @@ class AccountingViewModel @Inject constructor(
     }
 
     fun addManualEntry(brewerId: String, amount: Double, description: String, type: String, categoryId: String?) {
-        if (!beginDialogMutation(AccountingDialogAction.MANUAL_ENTRY)) return
+        if (!beginDialogAction(AccountingDialogAction.MANUAL_ENTRY)) return
         viewModelScope.launch {
             try {
                 api.createEntry(EntryRequest(brewerId = brewerId, amount = amount, description = description, type = type, categoryId = categoryId))
-                closeManualEntryDialog()
-                completeDialogMutation()
+                completeDialogAction { copy(showManualEntryDialog = false) }
                 refresh()
             } catch (e: Exception) {
-                failDialogMutation(e.message)
+                failDialogAction(e.message)
             }
         }
     }
@@ -115,15 +114,14 @@ class AccountingViewModel @Inject constructor(
 
     fun deleteEntry() {
         val entry = _uiState.value.entryToDelete ?: return
-        if (!beginDialogMutation(AccountingDialogAction.DELETE_ENTRY)) return
+        if (!beginDialogAction(AccountingDialogAction.DELETE_ENTRY)) return
         viewModelScope.launch {
             try {
                 api.deleteEntry(entry.id)
-                closeDeleteDialog()
-                completeDialogMutation()
+                completeDialogAction { copy(entryToDelete = null) }
                 refresh()
             } catch (e: Exception) {
-                failDialogMutation(e.message)
+                failDialogAction(e.message)
             }
         }
     }
@@ -139,7 +137,7 @@ class AccountingViewModel @Inject constructor(
 
     fun bookSettlement() {
         val s = _uiState.value.settlementToBook ?: return
-        if (!beginDialogMutation(AccountingDialogAction.BOOK_SETTLEMENT)) return
+        if (!beginDialogAction(AccountingDialogAction.BOOK_SETTLEMENT)) return
         viewModelScope.launch {
             try {
                 // Debit the payer (they hand over cash)
@@ -160,28 +158,27 @@ class AccountingViewModel @Inject constructor(
                         description = "Ausgleichszahlung von ${s.from.name}",
                     ),
                 )
-                closeSettlementDialog()
-                completeDialogMutation()
+                completeDialogAction { copy(settlementToBook = null) }
                 refresh()
             } catch (e: Exception) {
-                failDialogMutation(e.message)
+                failDialogAction(e.message)
             }
         }
     }
 
-    private fun beginDialogMutation(action: AccountingDialogAction): Boolean {
+    private fun beginDialogAction(action: AccountingDialogAction): Boolean {
         if (_uiState.value.submittingAction != null) return false
         _uiState.update { it.copy(submittingAction = action, dialogError = null) }
         sync.startSync()
         return true
     }
 
-    private fun completeDialogMutation() {
-        _uiState.update { it.copy(submittingAction = null, dialogError = null) }
+    private fun completeDialogAction(close: AccountingUiState.() -> AccountingUiState = { this }) {
+        _uiState.update { it.close().copy(submittingAction = null, dialogError = null) }
         sync.endSync()
     }
 
-    private fun failDialogMutation(message: String?) {
+    private fun failDialogAction(message: String?) {
         _uiState.update { it.copy(submittingAction = null, dialogError = message) }
         sync.endSync(message)
     }

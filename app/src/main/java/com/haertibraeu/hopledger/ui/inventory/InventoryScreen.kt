@@ -67,7 +67,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.haertibraeu.hopledger.ui.components.DialogActionButton
 import com.haertibraeu.hopledger.ui.components.DialogLoadingMessage
-import com.haertibraeu.hopledger.ui.components.DialogMutationMessage
+import com.haertibraeu.hopledger.ui.components.DialogErrorMessage
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -441,7 +441,7 @@ private fun AddContainerDialog(
                     enabled = !isSubmitting,
                     modifier = Modifier.fillMaxWidth(),
                 )
-                errorMessage?.let { DialogMutationMessage(it) }
+                errorMessage?.let { DialogErrorMessage(it) }
             }
         },
         confirmButton = {
@@ -553,7 +553,7 @@ private fun ContainerActionSheet(
             }
 
             if (!showSubDialog) {
-                errorMessage?.let { DialogMutationMessage(it) }
+                errorMessage?.let { DialogErrorMessage(it) }
             }
 
             // ── Standard actions ──────────────────────────────────────────
@@ -673,7 +673,7 @@ private fun ContainerActionSheet(
                         enabled = !isSubmitting,
                         label = { Text("Kundenname") },
                     )
-                    errorMessage?.let { DialogMutationMessage(it) }
+                    errorMessage?.let { DialogErrorMessage(it) }
                 }
             },
             confirmButton = {
@@ -732,7 +732,7 @@ private fun ContainerActionSheet(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Das Bier in $qLabel wird als vernichtet markiert. Die Gebinde werden leer — der Inhalt geht verloren. Diese Aktion kann nicht rückgängig gemacht werden.")
-                    errorMessage?.let { DialogMutationMessage(it) }
+                    errorMessage?.let { DialogErrorMessage(it) }
                 }
             },
             confirmButton = {
@@ -755,7 +755,7 @@ private fun ContainerActionSheet(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Du bist dabei, $qLabel endgültig aus dem System zu löschen. Alle zugehörigen Daten (Füllstand, Reservierungen) gehen verloren. Diese Aktion kann nicht rückgängig gemacht werden.")
-                    errorMessage?.let { DialogMutationMessage(it) }
+                    errorMessage?.let { DialogErrorMessage(it) }
                 }
             },
             confirmButton = {
@@ -816,7 +816,7 @@ private fun SellDialog(
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
-                errorMessage?.let { DialogMutationMessage(it) }
+                errorMessage?.let { DialogErrorMessage(it) }
             }
         },
         confirmButton = {
@@ -871,7 +871,7 @@ private fun MoveLocationDialog(
                 if (isSubmitting) {
                     DialogLoadingMessage(loadingLabel)
                 }
-                errorMessage?.let { DialogMutationMessage(it) }
+                errorMessage?.let { DialogErrorMessage(it) }
             }
         },
         confirmButton = {},
@@ -900,7 +900,7 @@ private fun PickerDialog(
                 if (isSubmitting) {
                     DialogLoadingMessage(loadingLabel)
                 }
-                errorMessage?.let { DialogMutationMessage(it) }
+                errorMessage?.let { DialogErrorMessage(it) }
             }
         },
         confirmButton = {},
@@ -942,7 +942,7 @@ private fun TwoPickerDialog(
                         Text(n)
                     }
                 }
-                errorMessage?.let { DialogMutationMessage(it) }
+                errorMessage?.let { DialogErrorMessage(it) }
             }
         },
         confirmButton = {

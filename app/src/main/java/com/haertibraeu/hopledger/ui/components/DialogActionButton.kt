@@ -46,7 +46,7 @@ fun DialogActionButton(
 }
 
 @Composable
-fun DialogMutationMessage(message: String) {
+fun DialogErrorMessage(message: String) {
     Text(
         text = message,
         style = MaterialTheme.typography.bodySmall,
