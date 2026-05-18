@@ -65,11 +65,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.haertibraeu.hopledger.ui.components.DialogActionButton
+import com.haertibraeu.hopledger.ui.components.DialogLoadingMessage
+import com.haertibraeu.hopledger.ui.components.DialogMutationMessage
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun InventoryScreen(viewModel: InventoryViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsState()
+    val isSubmitting = uiState.submittingAction != null
 
     // Refresh every time this screen enters composition (tab switches, navigation back)
     LaunchedEffect(Unit) { viewModel.refresh() }
@@ -113,7 +117,11 @@ fun InventoryScreen(viewModel: InventoryViewModel = hiltViewModel()) {
             }
         }
         FloatingActionButton(
-            onClick = viewModel::showAddDialog,
+            onClick = {
+                if (!isSubmitting) {
+                    viewModel.showAddDialog()
+                }
+            },
             modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
         ) {
             Icon(Icons.Default.Add, "Gebinde hinzufügen")
@@ -125,6 +133,8 @@ fun InventoryScreen(viewModel: InventoryViewModel = hiltViewModel()) {
             containerTypes = uiState.containerTypes,
             locations = uiState.locations,
             beers = uiState.beers,
+            submittingAction = uiState.submittingAction,
+            errorMessage = uiState.dialogError,
             onConfirm = { ctId, locId, beerId, count -> viewModel.addContainer(ctId, locId, beerId, count) },
             onDismiss = viewModel::dismissAddDialog,
         )
@@ -136,6 +146,8 @@ fun InventoryScreen(viewModel: InventoryViewModel = hiltViewModel()) {
             brewers = uiState.brewers,
             beers = uiState.beers,
             locations = uiState.locations,
+            submittingAction = uiState.submittingAction,
+            errorMessage = uiState.dialogError,
             onDismiss = viewModel::dismissSheet,
             onMove = { ids, loc -> viewModel.batchMove(ids, loc) },
             onFill = { ids, beer -> viewModel.batchFillContainers(ids, beer) },
@@ -392,9 +404,12 @@ private fun AddContainerDialog(
     containerTypes: List<com.haertibraeu.hopledger.data.model.ContainerType>,
     locations: List<com.haertibraeu.hopledger.data.model.Location>,
     beers: List<com.haertibraeu.hopledger.data.model.Beer>,
+    submittingAction: InventoryDialogAction?,
+    errorMessage: String?,
     onConfirm: (containerTypeId: String, locationId: String, beerId: String?, count: Int) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    val isSubmitting = submittingAction != null
     val defaultLocation = locations.firstOrNull { it.type == "brewery" } ?: locations.firstOrNull { it.type == "brewer" } ?: locations.firstOrNull()
     var selectedTypeId by remember { mutableStateOf(containerTypes.firstOrNull()?.id ?: "") }
     var selectedLocationId by remember { mutableStateOf(defaultLocation?.id ?: "") }
@@ -407,41 +422,50 @@ private fun AddContainerDialog(
     val selectedBeerName = if (selectedBeerId.isBlank()) "Leer" else beers.find { it.id == selectedBeerId }?.name ?: "Auswählen…"
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!isSubmitting) onDismiss() },
         title = { Text("Gebinde hinzufügen") },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("Gebindetyp", style = MaterialTheme.typography.labelLarge)
-                SpinnerField(selectedTypeName, containerTypes.map { it.name to it.id }) { selectedTypeId = it }
+                SpinnerField(selectedTypeName, containerTypes.map { it.name to it.id }, enabled = !isSubmitting) { selectedTypeId = it }
                 Text("Standort", style = MaterialTheme.typography.labelLarge)
-                SpinnerField(selectedLocationName, breweryLocations.map { it.name to it.id }) { selectedLocationId = it }
+                SpinnerField(selectedLocationName, breweryLocations.map { it.name to it.id }, enabled = !isSubmitting) { selectedLocationId = it }
                 Text("Bier (optional)", style = MaterialTheme.typography.labelLarge)
-                SpinnerField(selectedBeerName, listOf("Leer" to "") + beers.map { it.name to it.id }) { selectedBeerId = it }
+                SpinnerField(selectedBeerName, listOf("Leer" to "") + beers.map { it.name to it.id }, enabled = !isSubmitting) { selectedBeerId = it }
                 Text("Anzahl", style = MaterialTheme.typography.labelLarge)
                 OutlinedTextField(
                     value = countText,
                     onValueChange = { if (it.all(Char::isDigit) && it.length <= 2) countText = it },
                     label = { Text("Stück (max. 50)") },
                     singleLine = true,
+                    enabled = !isSubmitting,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                errorMessage?.let { DialogMutationMessage(it) }
             }
         },
         confirmButton = {
-            TextButton(
+            DialogActionButton(
+                label = "Hinzufügen",
                 onClick = { onConfirm(selectedTypeId, selectedLocationId, selectedBeerId.ifBlank { null }, countText.toIntOrNull() ?: 1) },
                 enabled = selectedTypeId.isNotBlank() && selectedLocationId.isNotBlank(),
-            ) { Text("Hinzufügen") }
+                isLoading = submittingAction == InventoryDialogAction.ADD_CONTAINER,
+            )
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } },
+        dismissButton = { DialogActionButton(label = "Abbrechen", onClick = onDismiss, enabled = !isSubmitting) },
     )
 }
 
 @Composable
-private fun SpinnerField(value: String, options: List<Pair<String, String>>, onSelect: (String) -> Unit) {
+private fun SpinnerField(
+    value: String,
+    options: List<Pair<String, String>>,
+    enabled: Boolean = true,
+    onSelect: (String) -> Unit,
+) {
     var expanded by remember { mutableStateOf(false) }
     Box {
-        OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
+        OutlinedButton(onClick = { expanded = true }, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
             Text(value, modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
             Icon(Icons.Default.ArrowDropDown, null)
         }
@@ -465,6 +489,8 @@ private fun ContainerActionSheet(
     brewers: List<com.haertibraeu.hopledger.data.model.Brewer>,
     beers: List<com.haertibraeu.hopledger.data.model.Beer>,
     locations: List<com.haertibraeu.hopledger.data.model.Location>,
+    submittingAction: InventoryDialogAction?,
+    errorMessage: String?,
     onDismiss: () -> Unit,
     onMove: (List<String>, String) -> Unit,
     onFill: (List<String>, String) -> Unit,
@@ -490,8 +516,10 @@ private fun ContainerActionSheet(
     var showReturn by remember { mutableStateOf(false) }
     var showDestroyBeerConfirm by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
+    val isSubmitting = submittingAction != null
+    val showSubDialog = showMove || showFill || showReserve || showSell || showConsume || showReturn || showDestroyBeerConfirm || showDeleteConfirm
 
-    ModalBottomSheet(onDismissRequest = onDismiss) {
+    ModalBottomSheet(onDismissRequest = { if (!isSubmitting) onDismiss() }) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp).padding(bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(4.dp),
@@ -511,87 +539,152 @@ private fun ContainerActionSheet(
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         FilledTonalIconButton(
                             onClick = { if (selectedQuantity > 1) selectedQuantity-- },
-                            enabled = selectedQuantity > 1,
+                            enabled = selectedQuantity > 1 && !isSubmitting,
                             modifier = Modifier.size(32.dp),
                         ) { Text("−") }
                         Text("$selectedQuantity/$totalQuantity", style = MaterialTheme.typography.titleMedium, modifier = Modifier.widthIn(min = 28.dp), textAlign = TextAlign.Center)
                         FilledTonalIconButton(
                             onClick = { if (selectedQuantity < group.count) selectedQuantity++ },
-                            enabled = selectedQuantity < group.count,
+                            enabled = selectedQuantity < group.count && !isSubmitting,
                             modifier = Modifier.size(32.dp),
                         ) { Text("+") }
                     }
                 }
             }
 
+            if (!showSubDialog) {
+                errorMessage?.let { DialogMutationMessage(it) }
+            }
+
             // ── Standard actions ──────────────────────────────────────────
-            TextButton(onClick = { showMove = true }, modifier = Modifier.fillMaxWidth()) { Text("📦 Verschieben") }
+            DialogActionButton(
+                label = "📦 Verschieben",
+                onClick = { showMove = true },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isSubmitting,
+            )
 
             if (container.isEmpty) {
-                TextButton(onClick = { showFill = true }, modifier = Modifier.fillMaxWidth()) { Text("🍺 Befüllen") }
+                DialogActionButton(
+                    label = "🍺 Befüllen",
+                    onClick = { showFill = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isSubmitting,
+                )
             }
 
             if (!container.isEmpty && !container.isReserved) {
-                TextButton(onClick = { showReserve = true }, modifier = Modifier.fillMaxWidth()) { Text("📋 Reservieren") }
+                DialogActionButton(
+                    label = "📋 Reservieren",
+                    onClick = { showReserve = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isSubmitting,
+                )
             }
             if (container.isReserved) {
-                TextButton(onClick = { onUnreserve(ids) }, modifier = Modifier.fillMaxWidth()) { Text("📋 Reservierung aufheben (${container.reservedFor})") }
+                DialogActionButton(
+                    label = "📋 Reservierung aufheben (${container.reservedFor})",
+                    onClick = { onUnreserve(ids) },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isSubmitting,
+                    isLoading = submittingAction == InventoryDialogAction.UNRESERVE,
+                )
             }
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
             if (!container.isEmpty) {
-                TextButton(onClick = { showSell = true }, modifier = Modifier.fillMaxWidth()) { Text("💰 Verkaufen (${container.containerType?.externalPrice ?: 0} + ${container.containerType?.depositFee ?: 0} CHF)") }
-                TextButton(onClick = { showConsume = true }, modifier = Modifier.fillMaxWidth()) { Text("🍻 Eigenverbrauch (${container.containerType?.internalPrice ?: 0} CHF)") }
+                DialogActionButton(
+                    label = "💰 Verkaufen (${container.containerType?.externalPrice ?: 0} + ${container.containerType?.depositFee ?: 0} CHF)",
+                    onClick = { showSell = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isSubmitting,
+                )
+                DialogActionButton(
+                    label = "🍻 Eigenverbrauch (${container.containerType?.internalPrice ?: 0} CHF)",
+                    onClick = { showConsume = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isSubmitting,
+                )
             }
 
-            TextButton(onClick = { showReturn = true }, modifier = Modifier.fillMaxWidth()) { Text("↩️ Rückgabe (${container.containerType?.depositFee ?: 0} CHF Pfand)") }
+            DialogActionButton(
+                label = "↩️ Rückgabe (${container.containerType?.depositFee ?: 0} CHF Pfand)",
+                onClick = { showReturn = true },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isSubmitting,
+            )
 
             // ── Danger zone ───────────────────────────────────────────────
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
             if (!container.isEmpty) {
-                TextButton(
+                DialogActionButton(
+                    label = "🗑️ Bier vernichten",
                     onClick = { showDestroyBeerConfirm = true },
                     modifier = Modifier.fillMaxWidth(),
+                    enabled = !isSubmitting,
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-                ) { Text("🗑️ Bier vernichten") }
+                )
             }
 
-            TextButton(
+            DialogActionButton(
+                label = "🗑️ Gebinde löschen",
                 onClick = { showDeleteConfirm = true },
                 modifier = Modifier.fillMaxWidth(),
+                enabled = !isSubmitting,
                 colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
-            ) { Text("🗑️ Gebinde löschen") }
+            )
         }
     }
 
     // ── Sub-dialogs ───────────────────────────────────────────────────────────
     if (showMove) {
-        MoveLocationDialog(locations, {
-            onMove(ids, it)
-            showMove = false
-        }, { showMove = false })
+        MoveLocationDialog(
+            locations = locations,
+            isSubmitting = isSubmitting,
+            errorMessage = errorMessage,
+            loadingLabel = "Verschiebe…",
+            onSelect = { onMove(ids, it) },
+            onDismiss = { if (!isSubmitting) showMove = false },
+        )
     }
     if (showFill) {
-        PickerDialog("Bier auswählen", beers.map { it.name to it.id }, {
-            onFill(ids, it)
-            showFill = false
-        }, { showFill = false })
+        PickerDialog(
+            title = "Bier auswählen",
+            options = beers.map { it.name to it.id },
+            isSubmitting = isSubmitting,
+            errorMessage = errorMessage,
+            loadingLabel = "Befülle…",
+            onSelect = { onFill(ids, it) },
+            onDismiss = { if (!isSubmitting) showFill = false },
+        )
     }
 
     if (showReserve) {
         AlertDialog(
-            onDismissRequest = { showReserve = false },
+            onDismissRequest = { if (!isSubmitting) showReserve = false },
             title = { Text("Reservieren für") },
-            text = { OutlinedTextField(value = customerName, onValueChange = { customerName = it }, label = { Text("Kundenname") }) },
-            confirmButton = {
-                TextButton(onClick = {
-                    onReserve(ids, customerName)
-                    showReserve = false
-                }) { Text("OK") }
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = customerName,
+                        onValueChange = { customerName = it },
+                        enabled = !isSubmitting,
+                        label = { Text("Kundenname") },
+                    )
+                    errorMessage?.let { DialogMutationMessage(it) }
+                }
             },
-            dismissButton = { TextButton(onClick = { showReserve = false }) { Text("Abbrechen") } },
+            confirmButton = {
+                DialogActionButton(
+                    label = "OK",
+                    onClick = { onReserve(ids, customerName) },
+                    enabled = customerName.isNotBlank(),
+                    isLoading = submittingAction == InventoryDialogAction.RESERVE,
+                )
+            },
+            dismissButton = { DialogActionButton(label = "Abbrechen", onClick = { showReserve = false }, enabled = !isSubmitting) },
         )
     }
 
@@ -599,55 +692,81 @@ private fun ContainerActionSheet(
         SellDialog(
             reservedFor = container.reservedFor,
             brewers = brewers,
-            onConfirm = { brewerId, customerName ->
-                onSell(ids, brewerId, customerName)
-                showSell = false
-            },
-            onDismiss = { showSell = false },
+            isSubmitting = isSubmitting,
+            errorMessage = errorMessage,
+            onConfirm = { brewerId, customerName -> onSell(ids, brewerId, customerName) },
+            onDismiss = { if (!isSubmitting) showSell = false },
         )
     }
     if (showConsume) {
-        PickerDialog("Brauer", brewers.map { it.name to it.id }, {
-            onSelfConsume(ids, it)
-            showConsume = false
-        }, { showConsume = false })
+        PickerDialog(
+            title = "Brauer",
+            options = brewers.map { it.name to it.id },
+            isSubmitting = isSubmitting,
+            errorMessage = errorMessage,
+            loadingLabel = "Buche Eigenverbrauch…",
+            onSelect = { onSelfConsume(ids, it) },
+            onDismiss = { if (!isSubmitting) showConsume = false },
+        )
     }
     if (showReturn) {
-        TwoPickerDialog("Rückgabe", "Brauer", brewers.map { it.name to it.id }, "Rückgabeort", locations.filter { it.type in breweryLocationTypes }.map { it.name to it.id }, { b, l ->
-            onContainerReturn(ids, b, l)
-            showReturn = false
-        }, { showReturn = false })
+        TwoPickerDialog(
+            title = "Rückgabe",
+            label1 = "Brauer",
+            options1 = brewers.map { it.name to it.id },
+            label2 = "Rückgabeort",
+            options2 = locations.filter { it.type in breweryLocationTypes }.map { it.name to it.id },
+            isSubmitting = isSubmitting,
+            errorMessage = errorMessage,
+            isLoading = submittingAction == InventoryDialogAction.RETURN,
+            onConfirm = { brewerId, locationId -> onContainerReturn(ids, brewerId, locationId) },
+            onDismiss = { if (!isSubmitting) showReturn = false },
+        )
     }
 
     if (showDestroyBeerConfirm) {
         val qLabel = if (selectedQuantity == 1) "diesem Gebinde" else "$selectedQuantity Gebinden"
         AlertDialog(
-            onDismissRequest = { showDestroyBeerConfirm = false },
+            onDismissRequest = { if (!isSubmitting) showDestroyBeerConfirm = false },
             title = { Text("Bier vernichten?") },
-            text = { Text("Das Bier in $qLabel wird als vernichtet markiert. Die Gebinde werden leer — der Inhalt geht verloren. Diese Aktion kann nicht rückgängig gemacht werden.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    onDestroyBeer(ids)
-                    showDestroyBeerConfirm = false
-                }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Vernichten") }
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Das Bier in $qLabel wird als vernichtet markiert. Die Gebinde werden leer — der Inhalt geht verloren. Diese Aktion kann nicht rückgängig gemacht werden.")
+                    errorMessage?.let { DialogMutationMessage(it) }
+                }
             },
-            dismissButton = { TextButton(onClick = { showDestroyBeerConfirm = false }) { Text("Abbrechen") } },
+            confirmButton = {
+                DialogActionButton(
+                    label = "Vernichten",
+                    onClick = { onDestroyBeer(ids) },
+                    isLoading = submittingAction == InventoryDialogAction.DESTROY_BEER,
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                )
+            },
+            dismissButton = { DialogActionButton(label = "Abbrechen", onClick = { showDestroyBeerConfirm = false }, enabled = !isSubmitting) },
         )
     }
 
     if (showDeleteConfirm) {
         val qLabel = if (selectedQuantity == 1) "dieses Gebinde" else "diese $selectedQuantity Gebinde"
         AlertDialog(
-            onDismissRequest = { showDeleteConfirm = false },
+            onDismissRequest = { if (!isSubmitting) showDeleteConfirm = false },
             title = { Text("Gebinde löschen?") },
-            text = { Text("Du bist dabei, $qLabel endgültig aus dem System zu löschen. Alle zugehörigen Daten (Füllstand, Reservierungen) gehen verloren. Diese Aktion kann nicht rückgängig gemacht werden.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    onDelete(ids)
-                    showDeleteConfirm = false
-                }, colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)) { Text("Löschen") }
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Du bist dabei, $qLabel endgültig aus dem System zu löschen. Alle zugehörigen Daten (Füllstand, Reservierungen) gehen verloren. Diese Aktion kann nicht rückgängig gemacht werden.")
+                    errorMessage?.let { DialogMutationMessage(it) }
+                }
             },
-            dismissButton = { TextButton(onClick = { showDeleteConfirm = false }) { Text("Abbrechen") } },
+            confirmButton = {
+                DialogActionButton(
+                    label = "Löschen",
+                    onClick = { onDelete(ids) },
+                    isLoading = submittingAction == InventoryDialogAction.DELETE,
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                )
+            },
+            dismissButton = { DialogActionButton(label = "Abbrechen", onClick = { showDeleteConfirm = false }, enabled = !isSubmitting) },
         )
     }
 }
@@ -656,6 +775,8 @@ private fun ContainerActionSheet(
 private fun SellDialog(
     reservedFor: String?,
     brewers: List<com.haertibraeu.hopledger.data.model.Brewer>,
+    isSubmitting: Boolean,
+    errorMessage: String?,
     onConfirm: (brewerId: String, customerName: String) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -663,7 +784,7 @@ private fun SellDialog(
     var customerName by remember { mutableStateOf(reservedFor ?: "") }
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!isSubmitting) onDismiss() },
         title = { Text("💰 Verkaufen") },
         text = {
             Column(
@@ -673,7 +794,7 @@ private fun SellDialog(
                 Text("Brauer", style = MaterialTheme.typography.labelLarge)
                 brewers.forEach { brewer ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = selectedBrewerId == brewer.id, onClick = { selectedBrewerId = brewer.id })
+                        RadioButton(selected = selectedBrewerId == brewer.id, onClick = { selectedBrewerId = brewer.id }, enabled = !isSubmitting)
                         Text(brewer.name)
                     }
                 }
@@ -689,26 +810,33 @@ private fun SellDialog(
                     OutlinedTextField(
                         value = customerName,
                         onValueChange = { customerName = it },
+                        enabled = !isSubmitting,
                         label = { Text("Kundenname") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
+                errorMessage?.let { DialogMutationMessage(it) }
             }
         },
         confirmButton = {
-            TextButton(
+            DialogActionButton(
+                label = "Verkaufen",
                 onClick = { if (selectedBrewerId.isNotBlank() && customerName.isNotBlank()) onConfirm(selectedBrewerId, customerName) },
                 enabled = selectedBrewerId.isNotBlank() && customerName.isNotBlank(),
-            ) { Text("Verkaufen") }
+                isLoading = isSubmitting,
+            )
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } },
+        dismissButton = { DialogActionButton(label = "Abbrechen", onClick = onDismiss, enabled = !isSubmitting) },
     )
 }
 
 @Composable
 private fun MoveLocationDialog(
     locations: List<com.haertibraeu.hopledger.data.model.Location>,
+    isSubmitting: Boolean,
+    errorMessage: String?,
+    loadingLabel: String,
     onSelect: (String) -> Unit,
     onDismiss: () -> Unit,
 ) {
@@ -717,16 +845,16 @@ private fun MoveLocationDialog(
     var showOthers by remember { mutableStateOf(false) }
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!isSubmitting) onDismiss() },
         title = { Text("Neuer Standort") },
         text = {
-            Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 primary.forEach { loc ->
-                    TextButton(onClick = { onSelect(loc.id) }, modifier = Modifier.fillMaxWidth()) { Text(loc.name, modifier = Modifier.weight(1f), textAlign = TextAlign.Start) }
+                    TextButton(onClick = { onSelect(loc.id) }, enabled = !isSubmitting, modifier = Modifier.fillMaxWidth()) { Text(loc.name, modifier = Modifier.weight(1f), textAlign = TextAlign.Start) }
                 }
                 if (secondary.isNotEmpty()) {
                     HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                    TextButton(onClick = { showOthers = !showOthers }, modifier = Modifier.fillMaxWidth()) {
+                    TextButton(onClick = { showOthers = !showOthers }, enabled = !isSubmitting, modifier = Modifier.fillMaxWidth()) {
                         Text(
                             if (showOthers) "▲ Weitere ausblenden" else "▼ Weitere anzeigen (${secondary.size})",
                             modifier = Modifier.weight(1f),
@@ -736,54 +864,95 @@ private fun MoveLocationDialog(
                     }
                     if (showOthers) {
                         secondary.forEach { loc ->
-                            TextButton(onClick = { onSelect(loc.id) }, modifier = Modifier.fillMaxWidth()) { Text(loc.name, modifier = Modifier.weight(1f), textAlign = TextAlign.Start) }
+                            TextButton(onClick = { onSelect(loc.id) }, enabled = !isSubmitting, modifier = Modifier.fillMaxWidth()) { Text(loc.name, modifier = Modifier.weight(1f), textAlign = TextAlign.Start) }
                         }
                     }
                 }
+                if (isSubmitting) {
+                    DialogLoadingMessage(loadingLabel)
+                }
+                errorMessage?.let { DialogMutationMessage(it) }
             }
         },
         confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } },
+        dismissButton = { DialogActionButton(label = "Abbrechen", onClick = onDismiss, enabled = !isSubmitting) },
     )
 }
 
 @Composable
-private fun PickerDialog(title: String, options: List<Pair<String, String>>, onSelect: (String) -> Unit, onDismiss: () -> Unit) {
+private fun PickerDialog(
+    title: String,
+    options: List<Pair<String, String>>,
+    isSubmitting: Boolean,
+    errorMessage: String?,
+    loadingLabel: String,
+    onSelect: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!isSubmitting) onDismiss() },
         title = { Text(title) },
-        text = { Column(modifier = Modifier.verticalScroll(rememberScrollState())) { options.forEach { (n, id) -> TextButton(onClick = { onSelect(id) }, modifier = Modifier.fillMaxWidth()) { Text(n) } } } },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                options.forEach { (n, id) ->
+                    TextButton(onClick = { onSelect(id) }, enabled = !isSubmitting, modifier = Modifier.fillMaxWidth()) { Text(n) }
+                }
+                if (isSubmitting) {
+                    DialogLoadingMessage(loadingLabel)
+                }
+                errorMessage?.let { DialogMutationMessage(it) }
+            }
+        },
         confirmButton = {},
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } },
+        dismissButton = { DialogActionButton(label = "Abbrechen", onClick = onDismiss, enabled = !isSubmitting) },
     )
 }
 
 @Composable
-private fun TwoPickerDialog(title: String, label1: String, options1: List<Pair<String, String>>, label2: String, options2: List<Pair<String, String>>, onConfirm: (String, String) -> Unit, onDismiss: () -> Unit) {
+private fun TwoPickerDialog(
+    title: String,
+    label1: String,
+    options1: List<Pair<String, String>>,
+    label2: String,
+    options2: List<Pair<String, String>>,
+    isSubmitting: Boolean,
+    errorMessage: String?,
+    isLoading: Boolean,
+    onConfirm: (String, String) -> Unit,
+    onDismiss: () -> Unit,
+) {
     var s1 by remember { mutableStateOf("") }
     var s2 by remember { mutableStateOf("") }
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!isSubmitting) onDismiss() },
         title = { Text(title) },
         text = {
             Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(label1, style = MaterialTheme.typography.labelLarge)
                 options1.forEach { (n, id) ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = s1 == id, onClick = { s1 = id })
+                        RadioButton(selected = s1 == id, onClick = { s1 = id }, enabled = !isSubmitting)
                         Text(n)
                     }
                 }
                 Text(label2, style = MaterialTheme.typography.labelLarge)
                 options2.forEach { (n, id) ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = s2 == id, onClick = { s2 = id })
+                        RadioButton(selected = s2 == id, onClick = { s2 = id }, enabled = !isSubmitting)
                         Text(n)
                     }
                 }
+                errorMessage?.let { DialogMutationMessage(it) }
             }
         },
-        confirmButton = { TextButton(onClick = { if (s1.isNotBlank() && s2.isNotBlank()) onConfirm(s1, s2) }, enabled = s1.isNotBlank() && s2.isNotBlank()) { Text("Bestätigen") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Abbrechen") } },
+        confirmButton = {
+            DialogActionButton(
+                label = "Bestätigen",
+                onClick = { if (s1.isNotBlank() && s2.isNotBlank()) onConfirm(s1, s2) },
+                enabled = s1.isNotBlank() && s2.isNotBlank(),
+                isLoading = isLoading,
+            )
+        },
+        dismissButton = { DialogActionButton(label = "Abbrechen", onClick = onDismiss, enabled = !isSubmitting) },
     )
 }

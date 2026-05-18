@@ -56,6 +56,8 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.haertibraeu.hopledger.data.model.AccountEntry
 import com.haertibraeu.hopledger.data.model.Balance
 import com.haertibraeu.hopledger.data.model.Settlement
+import com.haertibraeu.hopledger.ui.components.DialogActionButton
+import com.haertibraeu.hopledger.ui.components.DialogMutationMessage
 import com.haertibraeu.hopledger.ui.theme.HopGreenContainer
 import com.haertibraeu.hopledger.ui.theme.HopGreenContainerDark
 import com.haertibraeu.hopledger.ui.theme.OnHopGreenContainer
@@ -69,6 +71,7 @@ import kotlin.time.toJavaInstant
 @Composable
 fun AccountingScreen(viewModel: AccountingViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsState()
+    val isSubmitting = uiState.submittingAction != null
     var ausgleichExpanded by remember { mutableStateOf(false) }
 
     // Refresh every time this screen enters composition (tab switches, navigation back)
@@ -113,7 +116,11 @@ fun AccountingScreen(viewModel: AccountingViewModel = hiltViewModel()) {
                 AnimatedVisibility(visible = ausgleichExpanded) {
                     SettlementsCard(
                         settlements = uiState.settlements,
-                        onSettle = viewModel::confirmBookSettlement,
+                        onSettle = { settlement ->
+                            if (!isSubmitting) {
+                                viewModel.confirmBookSettlement(settlement)
+                            }
+                        },
                     )
                 }
             }
@@ -170,7 +177,11 @@ fun AccountingScreen(viewModel: AccountingViewModel = hiltViewModel()) {
         }
 
         FloatingActionButton(
-            onClick = viewModel::showManualEntryDialog,
+            onClick = {
+                if (!isSubmitting) {
+                    viewModel.showManualEntryDialog()
+                }
+            },
             modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
         ) {
             Icon(Icons.Default.Add, "Zahlung erfassen")
@@ -184,6 +195,8 @@ fun AccountingScreen(viewModel: AccountingViewModel = hiltViewModel()) {
     uiState.entryToDelete?.let { entry ->
         DeleteEntryDialog(
             entry = entry,
+            isSubmitting = uiState.submittingAction == AccountingDialogAction.DELETE_ENTRY,
+            errorMessage = uiState.dialogError,
             onConfirm = viewModel::deleteEntry,
             onDismiss = viewModel::dismissDeleteDialog,
         )
@@ -192,6 +205,8 @@ fun AccountingScreen(viewModel: AccountingViewModel = hiltViewModel()) {
     uiState.settlementToBook?.let { settlement ->
         BookSettlementDialog(
             settlement = settlement,
+            isSubmitting = uiState.submittingAction == AccountingDialogAction.BOOK_SETTLEMENT,
+            errorMessage = uiState.dialogError,
             onConfirm = viewModel::bookSettlement,
             onDismiss = viewModel::dismissSettlementDialog,
         )
@@ -269,21 +284,35 @@ private fun EntryCard(entry: AccountEntry, onLongPress: () -> Unit) {
 // ── Delete confirmation dialog ────────────────────────────────────────────────
 
 @Composable
-private fun DeleteEntryDialog(entry: AccountEntry, onConfirm: () -> Unit, onDismiss: () -> Unit) {
+private fun DeleteEntryDialog(
+    entry: AccountEntry,
+    isSubmitting: Boolean,
+    errorMessage: String?,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit,
+) {
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!isSubmitting) onDismiss() },
         title = { Text("Buchung löschen?") },
         text = {
-            Text(
-                "${entry.category?.name ?: entryTypeLabel(entry.type)}: ${"%.2f".format(entry.amount)} CHF" +
-                    (entry.description?.let { "\n$it" } ?: ""),
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "${entry.category?.name ?: entryTypeLabel(entry.type)}: ${"%.2f".format(entry.amount)} CHF" +
+                        (entry.description?.let { "\n$it" } ?: ""),
+                )
+                errorMessage?.let { DialogMutationMessage(it) }
+            }
         },
         confirmButton = {
-            TextButton(onClick = onConfirm) { Text("Löschen", color = MaterialTheme.colorScheme.error) }
+            DialogActionButton(
+                label = "Löschen",
+                onClick = onConfirm,
+                isLoading = isSubmitting,
+                colors = androidx.compose.material3.ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error),
+            )
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Abbrechen") }
+            DialogActionButton(label = "Abbrechen", onClick = onDismiss, enabled = !isSubmitting)
         },
     )
 }
@@ -389,23 +418,28 @@ private fun BalanceCard(balance: Balance) {
 @Composable
 private fun BookSettlementDialog(
     settlement: Settlement,
+    isSubmitting: Boolean,
+    errorMessage: String?,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
 ) {
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = { if (!isSubmitting) onDismiss() },
         title = { Text("Ausgleich buchen?") },
         text = {
-            Text(
-                "${settlement.from.name} zahlt ${"%.2f".format(settlement.amount)} CHF an ${settlement.to.name}.\n\n" +
-                    "Dies wird als neue Buchung erfasst.",
-            )
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(
+                    "${settlement.from.name} zahlt ${"%.2f".format(settlement.amount)} CHF an ${settlement.to.name}.\n\n" +
+                        "Dies wird als neue Buchung erfasst.",
+                )
+                errorMessage?.let { DialogMutationMessage(it) }
+            }
         },
         confirmButton = {
-            TextButton(onClick = onConfirm) { Text("Buchen") }
+            DialogActionButton(label = "Buchen", onClick = onConfirm, isLoading = isSubmitting)
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Abbrechen") }
+            DialogActionButton(label = "Abbrechen", onClick = onDismiss, enabled = !isSubmitting)
         },
     )
 }
@@ -415,6 +449,7 @@ private fun BookSettlementDialog(
 @Composable
 private fun ManualEntryDialog(viewModel: AccountingViewModel) {
     val uiState by viewModel.uiState.collectAsState()
+    val isSubmitting = uiState.submittingAction == AccountingDialogAction.MANUAL_ENTRY
     var selectedBrewerId by remember { mutableStateOf(uiState.brewers.firstOrNull()?.id ?: "") }
     var amountText by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
@@ -434,7 +469,7 @@ private fun ManualEntryDialog(viewModel: AccountingViewModel) {
     } ?: "Keine Kategorie"
 
     AlertDialog(
-        onDismissRequest = viewModel::dismissManualEntryDialog,
+        onDismissRequest = { if (!isSubmitting) viewModel.dismissManualEntryDialog() },
         title = { Text("Zahlung erfassen") },
         text = {
             Column(
@@ -445,6 +480,7 @@ private fun ManualEntryDialog(viewModel: AccountingViewModel) {
                 SpinnerField(
                     value = selectedBrewerName,
                     options = uiState.brewers.map { it.name to it.id },
+                    enabled = !isSubmitting,
                     onSelect = { selectedBrewerId = it ?: "" },
                 )
 
@@ -454,6 +490,7 @@ private fun ManualEntryDialog(viewModel: AccountingViewModel) {
                     options = listOf("Keine Kategorie" to null) + uiState.categories.map {
                         "${if (it.type == "income") "💰" else "💸"} ${it.name}" to it.id
                     },
+                    enabled = !isSubmitting,
                     onSelect = { selectedCategoryId = it },
                 )
 
@@ -470,6 +507,7 @@ private fun ManualEntryDialog(viewModel: AccountingViewModel) {
                         )
                     },
                     singleLine = true,
+                    enabled = !isSubmitting,
                     modifier = Modifier.fillMaxWidth(),
                 )
 
@@ -479,26 +517,26 @@ private fun ManualEntryDialog(viewModel: AccountingViewModel) {
                     onValueChange = { description = it },
                     label = { Text("Zweck (optional)") },
                     singleLine = true,
+                    enabled = !isSubmitting,
                     modifier = Modifier.fillMaxWidth(),
                 )
+                uiState.dialogError?.let { DialogMutationMessage(it) }
             }
         },
         confirmButton = {
-            TextButton(
+            DialogActionButton(
+                label = "Buchen",
                 onClick = {
                     val absAmount = amountText.toDoubleOrNull()?.let { kotlin.math.abs(it) } ?: 0.0
                     val finalAmount = if (selectedCategory?.type == "expense") -absAmount else absAmount
                     viewModel.addManualEntry(selectedBrewerId, finalAmount, description, "manual", selectedCategoryId)
                 },
                 enabled = selectedBrewerId.isNotBlank() && amountText.toDoubleOrNull() != null,
-            ) {
-                Text("Buchen")
-            }
+                isLoading = isSubmitting,
+            )
         },
         dismissButton = {
-            TextButton(onClick = viewModel::dismissManualEntryDialog) {
-                Text("Abbrechen")
-            }
+            DialogActionButton(label = "Abbrechen", onClick = viewModel::dismissManualEntryDialog, enabled = !isSubmitting)
         },
     )
 }
@@ -507,12 +545,14 @@ private fun ManualEntryDialog(viewModel: AccountingViewModel) {
 private fun SpinnerField(
     value: String,
     options: List<Pair<String, String?>>,
+    enabled: Boolean = true,
     onSelect: (String?) -> Unit,
 ) {
     var expanded by remember { mutableStateOf(false) }
     Box {
         OutlinedButton(
             onClick = { expanded = true },
+            enabled = enabled,
             modifier = Modifier.fillMaxWidth(),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
         ) {

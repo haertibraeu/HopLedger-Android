@@ -18,6 +18,12 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+enum class AccountingDialogAction {
+    MANUAL_ENTRY,
+    DELETE_ENTRY,
+    BOOK_SETTLEMENT,
+}
+
 data class AccountingUiState(
     val balances: List<Balance> = emptyList(),
     val settlements: List<Settlement> = emptyList(),
@@ -30,6 +36,8 @@ data class AccountingUiState(
     val showManualEntryDialog: Boolean = false,
     val entryToDelete: AccountEntry? = null,
     val settlementToBook: Settlement? = null,
+    val submittingAction: AccountingDialogAction? = null,
+    val dialogError: String? = null,
 )
 
 @HiltViewModel
@@ -75,55 +83,63 @@ class AccountingViewModel @Inject constructor(
     }
 
     fun showManualEntryDialog() {
-        _uiState.update { it.copy(showManualEntryDialog = true) }
+        _uiState.update { it.copy(showManualEntryDialog = true, dialogError = null) }
     }
     fun dismissManualEntryDialog() {
-        _uiState.update { it.copy(showManualEntryDialog = false) }
+        if (_uiState.value.submittingAction != null) return
+        closeManualEntryDialog()
     }
 
     fun addManualEntry(brewerId: String, amount: Double, description: String, type: String, categoryId: String?) {
+        if (!beginDialogMutation(AccountingDialogAction.MANUAL_ENTRY)) return
         viewModelScope.launch {
             try {
                 api.createEntry(EntryRequest(brewerId = brewerId, amount = amount, description = description, type = type, categoryId = categoryId))
-                dismissManualEntryDialog()
+                closeManualEntryDialog()
+                completeDialogMutation()
                 refresh()
             } catch (e: Exception) {
-                _uiState.update { it.copy(error = e.message) }
+                failDialogMutation(e.message)
             }
         }
     }
 
     fun confirmDeleteEntry(entry: AccountEntry) {
-        _uiState.update { it.copy(entryToDelete = entry) }
+        _uiState.update { it.copy(entryToDelete = entry, dialogError = null) }
     }
 
     fun dismissDeleteDialog() {
-        _uiState.update { it.copy(entryToDelete = null) }
+        if (_uiState.value.submittingAction != null) return
+        closeDeleteDialog()
     }
 
     fun deleteEntry() {
         val entry = _uiState.value.entryToDelete ?: return
+        if (!beginDialogMutation(AccountingDialogAction.DELETE_ENTRY)) return
         viewModelScope.launch {
             try {
                 api.deleteEntry(entry.id)
-                dismissDeleteDialog()
+                closeDeleteDialog()
+                completeDialogMutation()
                 refresh()
             } catch (e: Exception) {
-                _uiState.update { it.copy(error = e.message) }
+                failDialogMutation(e.message)
             }
         }
     }
 
     fun confirmBookSettlement(settlement: Settlement) {
-        _uiState.update { it.copy(settlementToBook = settlement) }
+        _uiState.update { it.copy(settlementToBook = settlement, dialogError = null) }
     }
 
     fun dismissSettlementDialog() {
-        _uiState.update { it.copy(settlementToBook = null) }
+        if (_uiState.value.submittingAction != null) return
+        closeSettlementDialog()
     }
 
     fun bookSettlement() {
         val s = _uiState.value.settlementToBook ?: return
+        if (!beginDialogMutation(AccountingDialogAction.BOOK_SETTLEMENT)) return
         viewModelScope.launch {
             try {
                 // Debit the payer (they hand over cash)
@@ -144,11 +160,41 @@ class AccountingViewModel @Inject constructor(
                         description = "Ausgleichszahlung von ${s.from.name}",
                     ),
                 )
-                dismissSettlementDialog()
+                closeSettlementDialog()
+                completeDialogMutation()
                 refresh()
             } catch (e: Exception) {
-                _uiState.update { it.copy(error = e.message) }
+                failDialogMutation(e.message)
             }
         }
+    }
+
+    private fun beginDialogMutation(action: AccountingDialogAction): Boolean {
+        if (_uiState.value.submittingAction != null) return false
+        _uiState.update { it.copy(submittingAction = action, dialogError = null) }
+        sync.startSync()
+        return true
+    }
+
+    private fun completeDialogMutation() {
+        _uiState.update { it.copy(submittingAction = null, dialogError = null) }
+        sync.endSync()
+    }
+
+    private fun failDialogMutation(message: String?) {
+        _uiState.update { it.copy(submittingAction = null, dialogError = message) }
+        sync.endSync(message)
+    }
+
+    private fun closeManualEntryDialog() {
+        _uiState.update { it.copy(showManualEntryDialog = false, dialogError = null) }
+    }
+
+    private fun closeDeleteDialog() {
+        _uiState.update { it.copy(entryToDelete = null, dialogError = null) }
+    }
+
+    private fun closeSettlementDialog() {
+        _uiState.update { it.copy(settlementToBook = null, dialogError = null) }
     }
 }
