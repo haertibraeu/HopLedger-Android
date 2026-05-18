@@ -99,6 +99,7 @@ class AccountingViewModel @Inject constructor(
     }
 
     fun confirmDeleteEntry(entry: AccountEntry) {
+        if (_uiState.value.submittingAction != null) return
         _uiState.update { it.copy(entryToDelete = entry, dialogError = null) }
     }
 
