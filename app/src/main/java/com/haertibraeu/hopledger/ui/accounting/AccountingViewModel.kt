@@ -18,12 +18,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-enum class AccountingDialogAction {
-    MANUAL_ENTRY,
-    DELETE_ENTRY,
-    BOOK_SETTLEMENT,
-}
-
 data class AccountingUiState(
     val balances: List<Balance> = emptyList(),
     val settlements: List<Settlement> = emptyList(),
@@ -83,6 +77,7 @@ class AccountingViewModel @Inject constructor(
     }
 
     fun showManualEntryDialog() {
+        if (_uiState.value.submittingAction != null) return
         _uiState.update { it.copy(showManualEntryDialog = true, dialogError = null) }
     }
     fun dismissManualEntryDialog() {
@@ -127,6 +122,7 @@ class AccountingViewModel @Inject constructor(
     }
 
     fun confirmBookSettlement(settlement: Settlement) {
+        if (_uiState.value.submittingAction != null) return
         _uiState.update { it.copy(settlementToBook = settlement, dialogError = null) }
     }
 

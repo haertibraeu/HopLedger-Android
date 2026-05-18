@@ -71,7 +71,6 @@ import kotlin.time.toJavaInstant
 @Composable
 fun AccountingScreen(viewModel: AccountingViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsState()
-    val isSubmitting = uiState.submittingAction != null
     var ausgleichExpanded by remember { mutableStateOf(false) }
 
     // Refresh every time this screen enters composition (tab switches, navigation back)
@@ -116,11 +115,7 @@ fun AccountingScreen(viewModel: AccountingViewModel = hiltViewModel()) {
                 AnimatedVisibility(visible = ausgleichExpanded) {
                     SettlementsCard(
                         settlements = uiState.settlements,
-                        onSettle = { settlement ->
-                            if (!isSubmitting) {
-                                viewModel.confirmBookSettlement(settlement)
-                            }
-                        },
+                        onSettle = viewModel::confirmBookSettlement,
                     )
                 }
             }
@@ -177,11 +172,7 @@ fun AccountingScreen(viewModel: AccountingViewModel = hiltViewModel()) {
         }
 
         FloatingActionButton(
-            onClick = {
-                if (!isSubmitting) {
-                    viewModel.showManualEntryDialog()
-                }
-            },
+            onClick = viewModel::showManualEntryDialog,
             modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
         ) {
             Icon(Icons.Default.Add, "Zahlung erfassen")

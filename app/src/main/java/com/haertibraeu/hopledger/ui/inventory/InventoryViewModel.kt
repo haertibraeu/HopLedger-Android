@@ -31,19 +31,6 @@ import javax.inject.Inject
 
 enum class StatusFilter { ALL, FULL, EMPTY, RESERVED }
 
-enum class InventoryDialogAction {
-    ADD_CONTAINER,
-    MOVE,
-    FILL,
-    RESERVE,
-    UNRESERVE,
-    SELL,
-    SELF_CONSUME,
-    RETURN,
-    DESTROY_BEER,
-    DELETE,
-}
-
 data class ContainerGroup(
     val containerTypeId: String,
     val beerId: String?,
@@ -198,6 +185,7 @@ class InventoryViewModel @Inject constructor(
         closeSheet()
     }
     fun showAddDialog() {
+        if (_uiState.value.submittingAction != null) return
         _uiState.update { it.copy(showAddDialog = true, dialogError = null) }
     }
     fun dismissAddDialog() {

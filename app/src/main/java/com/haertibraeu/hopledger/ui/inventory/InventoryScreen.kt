@@ -73,7 +73,6 @@ import com.haertibraeu.hopledger.ui.components.DialogErrorMessage
 @Composable
 fun InventoryScreen(viewModel: InventoryViewModel = hiltViewModel()) {
     val uiState by viewModel.uiState.collectAsState()
-    val isSubmitting = uiState.submittingAction != null
 
     // Refresh every time this screen enters composition (tab switches, navigation back)
     LaunchedEffect(Unit) { viewModel.refresh() }
@@ -117,11 +116,7 @@ fun InventoryScreen(viewModel: InventoryViewModel = hiltViewModel()) {
             }
         }
         FloatingActionButton(
-            onClick = {
-                if (!isSubmitting) {
-                    viewModel.showAddDialog()
-                }
-            },
+            onClick = viewModel::showAddDialog,
             modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
         ) {
             Icon(Icons.Default.Add, "Gebinde hinzufügen")
