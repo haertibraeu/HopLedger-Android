@@ -66,8 +66,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.haertibraeu.hopledger.ui.components.DialogActionButton
-import com.haertibraeu.hopledger.ui.components.DialogLoadingMessage
 import com.haertibraeu.hopledger.ui.components.DialogErrorMessage
+import com.haertibraeu.hopledger.ui.components.DialogLoadingMessage
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -381,7 +381,7 @@ private fun ContainerGroupCard(group: ContainerGroup, onClick: () -> Unit) {
 
                 Badge(
                     containerColor = badgeContainerColor,
-                    contentColor = badgeContentColor
+                    contentColor = badgeContentColor,
                 ) { Text("×${group.count}") }
             }
             Spacer(Modifier.height(4.dp))
