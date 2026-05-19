@@ -514,8 +514,7 @@ private fun ContainerActionSheet(
     var showDestroyBeerConfirm by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     val isSubmitting = submittingAction != null
-    fun errorMessageFor(action: InventoryDialogAction): String? =
-        dialogError?.takeIf { it.action == action }?.message
+    fun errorMessageFor(action: InventoryDialogAction): String? = dialogError?.takeIf { it.action == action }?.message
 
     ModalBottomSheet(onDismissRequest = { if (!isSubmitting) onDismiss() }) {
         Column(
