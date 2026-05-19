@@ -61,7 +61,12 @@ data class InventoryUiState(
     val showActionSheet: Boolean = false,
     val showAddDialog: Boolean = false,
     val submittingAction: InventoryDialogAction? = null,
-    val dialogError: String? = null,
+    val dialogError: InventoryDialogError? = null,
+)
+
+data class InventoryDialogError(
+    val action: InventoryDialogAction,
+    val message: String,
 )
 
 @HiltViewModel
@@ -176,7 +181,6 @@ class InventoryViewModel @Inject constructor(
                 selectedContainer = group.sampleContainer,
                 selectedGroup = group,
                 showActionSheet = true,
-                dialogError = null,
             )
         }
     }
@@ -186,7 +190,7 @@ class InventoryViewModel @Inject constructor(
     }
     fun showAddDialog() {
         if (_uiState.value.submittingAction != null) return
-        _uiState.update { it.copy(showAddDialog = true, dialogError = null) }
+        _uiState.update { it.copy(showAddDialog = true) }
     }
     fun dismissAddDialog() {
         if (_uiState.value.submittingAction != null) return
@@ -327,7 +331,17 @@ class InventoryViewModel @Inject constructor(
     }
 
     private fun failDialogAction(message: String?) {
-        _uiState.update { it.copy(submittingAction = null, dialogError = message) }
+        val failedAction = _uiState.value.submittingAction
+        _uiState.update {
+            it.copy(
+                submittingAction = null,
+                dialogError = if (failedAction != null && message != null) {
+                    InventoryDialogError(action = failedAction, message = message)
+                } else {
+                    null
+                },
+            )
+        }
         sync.endSync(message)
     }
 
@@ -337,12 +351,11 @@ class InventoryViewModel @Inject constructor(
                 showActionSheet = false,
                 selectedContainer = null,
                 selectedGroup = null,
-                dialogError = null,
             )
         }
     }
 
     private fun closeAddDialog() {
-        _uiState.update { it.copy(showAddDialog = false, dialogError = null) }
+        _uiState.update { it.copy(showAddDialog = false) }
     }
 }

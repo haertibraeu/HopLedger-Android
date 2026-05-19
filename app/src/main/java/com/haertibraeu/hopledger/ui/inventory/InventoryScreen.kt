@@ -129,7 +129,9 @@ fun InventoryScreen(viewModel: InventoryViewModel = hiltViewModel()) {
             locations = uiState.locations,
             beers = uiState.beers,
             submittingAction = uiState.submittingAction,
-            errorMessage = uiState.dialogError,
+            errorMessage = uiState.dialogError
+                ?.takeIf { it.action == InventoryDialogAction.ADD_CONTAINER }
+                ?.message,
             onConfirm = { ctId, locId, beerId, count -> viewModel.addContainer(ctId, locId, beerId, count) },
             onDismiss = viewModel::dismissAddDialog,
         )
@@ -142,7 +144,7 @@ fun InventoryScreen(viewModel: InventoryViewModel = hiltViewModel()) {
             beers = uiState.beers,
             locations = uiState.locations,
             submittingAction = uiState.submittingAction,
-            errorMessage = uiState.dialogError,
+            dialogError = uiState.dialogError,
             onDismiss = viewModel::dismissSheet,
             onMove = { ids, loc -> viewModel.batchMove(ids, loc) },
             onFill = { ids, beer -> viewModel.batchFillContainers(ids, beer) },
@@ -485,7 +487,7 @@ private fun ContainerActionSheet(
     beers: List<com.haertibraeu.hopledger.data.model.Beer>,
     locations: List<com.haertibraeu.hopledger.data.model.Location>,
     submittingAction: InventoryDialogAction?,
-    errorMessage: String?,
+    dialogError: InventoryDialogError?,
     onDismiss: () -> Unit,
     onMove: (List<String>, String) -> Unit,
     onFill: (List<String>, String) -> Unit,
@@ -512,7 +514,8 @@ private fun ContainerActionSheet(
     var showDestroyBeerConfirm by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     val isSubmitting = submittingAction != null
-    val showSubDialog = showMove || showFill || showReserve || showSell || showConsume || showReturn || showDestroyBeerConfirm || showDeleteConfirm
+    fun errorMessageFor(action: InventoryDialogAction): String? =
+        dialogError?.takeIf { it.action == action }?.message
 
     ModalBottomSheet(onDismissRequest = { if (!isSubmitting) onDismiss() }) {
         Column(
@@ -545,10 +548,6 @@ private fun ContainerActionSheet(
                         ) { Text("+") }
                     }
                 }
-            }
-
-            if (!showSubDialog) {
-                errorMessage?.let { DialogErrorMessage(it) }
             }
 
             // ── Standard actions ──────────────────────────────────────────
@@ -638,7 +637,7 @@ private fun ContainerActionSheet(
         MoveLocationDialog(
             locations = locations,
             isSubmitting = isSubmitting,
-            errorMessage = errorMessage,
+            errorMessage = errorMessageFor(InventoryDialogAction.MOVE),
             loadingLabel = "Verschiebe…",
             onSelect = { onMove(ids, it) },
             onDismiss = { if (!isSubmitting) showMove = false },
@@ -649,7 +648,7 @@ private fun ContainerActionSheet(
             title = "Bier auswählen",
             options = beers.map { it.name to it.id },
             isSubmitting = isSubmitting,
-            errorMessage = errorMessage,
+            errorMessage = errorMessageFor(InventoryDialogAction.FILL),
             loadingLabel = "Befülle…",
             onSelect = { onFill(ids, it) },
             onDismiss = { if (!isSubmitting) showFill = false },
@@ -668,7 +667,7 @@ private fun ContainerActionSheet(
                         enabled = !isSubmitting,
                         label = { Text("Kundenname") },
                     )
-                    errorMessage?.let { DialogErrorMessage(it) }
+                    errorMessageFor(InventoryDialogAction.RESERVE)?.let { DialogErrorMessage(it) }
                 }
             },
             confirmButton = {
@@ -688,7 +687,7 @@ private fun ContainerActionSheet(
             reservedFor = container.reservedFor,
             brewers = brewers,
             isSubmitting = isSubmitting,
-            errorMessage = errorMessage,
+            errorMessage = errorMessageFor(InventoryDialogAction.SELL),
             onConfirm = { brewerId, customerName -> onSell(ids, brewerId, customerName) },
             onDismiss = { if (!isSubmitting) showSell = false },
         )
@@ -698,7 +697,7 @@ private fun ContainerActionSheet(
             title = "Brauer",
             options = brewers.map { it.name to it.id },
             isSubmitting = isSubmitting,
-            errorMessage = errorMessage,
+            errorMessage = errorMessageFor(InventoryDialogAction.SELF_CONSUME),
             loadingLabel = "Buche Eigenverbrauch…",
             onSelect = { onSelfConsume(ids, it) },
             onDismiss = { if (!isSubmitting) showConsume = false },
@@ -712,7 +711,7 @@ private fun ContainerActionSheet(
             label2 = "Rückgabeort",
             options2 = locations.filter { it.type in breweryLocationTypes }.map { it.name to it.id },
             isSubmitting = isSubmitting,
-            errorMessage = errorMessage,
+            errorMessage = errorMessageFor(InventoryDialogAction.RETURN),
             isLoading = submittingAction == InventoryDialogAction.RETURN,
             onConfirm = { brewerId, locationId -> onContainerReturn(ids, brewerId, locationId) },
             onDismiss = { if (!isSubmitting) showReturn = false },
@@ -727,7 +726,7 @@ private fun ContainerActionSheet(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Das Bier in $qLabel wird als vernichtet markiert. Die Gebinde werden leer — der Inhalt geht verloren. Diese Aktion kann nicht rückgängig gemacht werden.")
-                    errorMessage?.let { DialogErrorMessage(it) }
+                    errorMessageFor(InventoryDialogAction.DESTROY_BEER)?.let { DialogErrorMessage(it) }
                 }
             },
             confirmButton = {
@@ -750,7 +749,7 @@ private fun ContainerActionSheet(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("Du bist dabei, $qLabel endgültig aus dem System zu löschen. Alle zugehörigen Daten (Füllstand, Reservierungen) gehen verloren. Diese Aktion kann nicht rückgängig gemacht werden.")
-                    errorMessage?.let { DialogErrorMessage(it) }
+                    errorMessageFor(InventoryDialogAction.DELETE)?.let { DialogErrorMessage(it) }
                 }
             },
             confirmButton = {
