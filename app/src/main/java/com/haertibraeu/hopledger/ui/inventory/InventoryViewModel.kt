@@ -60,6 +60,13 @@ data class InventoryUiState(
     val selectedGroup: ContainerGroup? = null,
     val showActionSheet: Boolean = false,
     val showAddDialog: Boolean = false,
+    val submittingAction: InventoryDialogAction? = null,
+    val dialogError: InventoryDialogError? = null,
+)
+
+data class InventoryDialogError(
+    val action: InventoryDialogAction,
+    val message: String,
 )
 
 @HiltViewModel
@@ -169,114 +176,110 @@ class InventoryViewModel @Inject constructor(
     }
 
     fun selectGroup(group: ContainerGroup) {
-        _uiState.update { it.copy(selectedContainer = group.sampleContainer, selectedGroup = group, showActionSheet = true) }
+        _uiState.update {
+            it.copy(
+                selectedContainer = group.sampleContainer,
+                selectedGroup = group,
+                showActionSheet = true,
+            )
+        }
     }
     fun dismissSheet() {
-        _uiState.update { it.copy(showActionSheet = false, selectedContainer = null, selectedGroup = null) }
+        if (_uiState.value.submittingAction != null) return
+        closeSheet()
     }
     fun showAddDialog() {
+        if (_uiState.value.submittingAction != null) return
         _uiState.update { it.copy(showAddDialog = true) }
     }
     fun dismissAddDialog() {
-        _uiState.update { it.copy(showAddDialog = false) }
+        if (_uiState.value.submittingAction != null) return
+        closeAddDialog()
     }
 
     fun addContainer(containerTypeId: String, locationId: String, beerId: String?, count: Int = 1) {
+        if (!beginDialogAction(InventoryDialogAction.ADD_CONTAINER)) return
         viewModelScope.launch {
-            sync.startSync()
             try {
                 repeat(count.coerceIn(1, 50)) {
                     api.createContainer(ContainerCreateRequest(containerTypeId, locationId, beerId))
                 }
-                dismissAddDialog()
-                sync.endSync()
+                completeDialogAction { copy(showAddDialog = false) }
                 refresh()
             } catch (e: Exception) {
-                _uiState.update { it.copy(error = e.message) }
-                sync.endSync(e.message)
+                failDialogAction(e.message)
             }
         }
     }
 
-    private fun containerAction(action: suspend () -> Unit) {
+    private fun containerAction(
+        actionId: InventoryDialogAction,
+        action: suspend () -> Unit,
+    ) {
+        if (!beginDialogAction(actionId)) return
         viewModelScope.launch {
-            sync.startSync()
             try {
                 action()
-                sync.endSync()
+                completeDialogAction { copy(showActionSheet = false, selectedContainer = null, selectedGroup = null) }
                 refresh()
             } catch (e: Exception) {
-                _uiState.update { it.copy(error = e.message) }
-                sync.endSync()
+                failDialogAction(e.message)
             }
         }
     }
 
-    fun deleteContainer(id: String) = containerAction {
+    fun deleteContainer(id: String) = containerAction(InventoryDialogAction.DELETE) {
         api.deleteContainer(id)
-        dismissSheet()
     }
-    fun moveContainer(id: String, locationId: String) = containerAction {
+    fun moveContainer(id: String, locationId: String) = containerAction(InventoryDialogAction.MOVE) {
         api.moveContainer(id, MoveRequest(locationId))
-        dismissSheet()
     }
-    fun fillContainer(id: String, beerId: String) = containerAction {
+    fun fillContainer(id: String, beerId: String) = containerAction(InventoryDialogAction.FILL) {
         api.fillContainer(id, FillRequest(beerId))
-        dismissSheet()
     }
-    fun destroyBeer(id: String) = containerAction {
+    fun destroyBeer(id: String) = containerAction(InventoryDialogAction.DESTROY_BEER) {
         api.destroyBeer(id)
-        dismissSheet()
     }
-    fun reserveContainer(id: String, customerName: String) = containerAction {
+    fun reserveContainer(id: String, customerName: String) = containerAction(InventoryDialogAction.RESERVE) {
         api.reserveContainer(id, ReserveRequest(customerName))
-        dismissSheet()
     }
-    fun unreserveContainer(id: String) = containerAction {
+    fun unreserveContainer(id: String) = containerAction(InventoryDialogAction.UNRESERVE) {
         api.unreserveContainer(id)
-        dismissSheet()
     }
-    fun sell(containerId: String, brewerId: String, customerLocationId: String) = containerAction {
+    fun sell(containerId: String, brewerId: String, customerLocationId: String) = containerAction(InventoryDialogAction.SELL) {
         api.sell(SellRequest(containerId, brewerId, customerLocationId))
-        dismissSheet()
     }
-    fun selfConsume(containerId: String, brewerId: String) = containerAction {
+    fun selfConsume(containerId: String, brewerId: String) = containerAction(InventoryDialogAction.SELF_CONSUME) {
         api.selfConsume(SelfConsumeRequest(containerId, brewerId))
-        dismissSheet()
     }
-    fun containerReturn(containerId: String, brewerId: String, returnLocationId: String) = containerAction {
+    fun containerReturn(containerId: String, brewerId: String, returnLocationId: String) = containerAction(InventoryDialogAction.RETURN) {
         api.containerReturn(ContainerReturnRequest(containerId, brewerId, returnLocationId))
-        dismissSheet()
     }
-    fun batchFill(containerIds: List<String>, beerId: String) = containerAction { api.batchFill(BatchFillRequest(containerIds, beerId)) }
+    fun batchFill(containerIds: List<String>, beerId: String) = containerAction(InventoryDialogAction.FILL) {
+        api.batchFill(BatchFillRequest(containerIds, beerId))
+    }
 
-    fun batchMove(ids: List<String>, locationId: String) = containerAction {
+    fun batchMove(ids: List<String>, locationId: String) = containerAction(InventoryDialogAction.MOVE) {
         ids.forEach { api.moveContainer(it, MoveRequest(locationId)) }
-        dismissSheet()
     }
-    fun batchFillContainers(ids: List<String>, beerId: String) = containerAction {
+    fun batchFillContainers(ids: List<String>, beerId: String) = containerAction(InventoryDialogAction.FILL) {
         ids.forEach { api.fillContainer(it, FillRequest(beerId)) }
-        dismissSheet()
     }
-    fun batchDestroyBeer(ids: List<String>) = containerAction {
+    fun batchDestroyBeer(ids: List<String>) = containerAction(InventoryDialogAction.DESTROY_BEER) {
         ids.forEach { api.destroyBeer(it) }
-        dismissSheet()
     }
-    fun batchDelete(ids: List<String>) = containerAction {
+    fun batchDelete(ids: List<String>) = containerAction(InventoryDialogAction.DELETE) {
         ids.forEach { api.deleteContainer(it) }
-        dismissSheet()
     }
-    fun batchReserve(ids: List<String>, customerName: String) = containerAction {
+    fun batchReserve(ids: List<String>, customerName: String) = containerAction(InventoryDialogAction.RESERVE) {
         ids.forEach { api.reserveContainer(it, ReserveRequest(customerName)) }
-        dismissSheet()
     }
-    fun batchUnreserve(ids: List<String>) = containerAction {
+    fun batchUnreserve(ids: List<String>) = containerAction(InventoryDialogAction.UNRESERVE) {
         ids.forEach { api.unreserveContainer(it) }
-        dismissSheet()
     }
 
     /** Find-or-create a customer location named [customerName], then sell all [ids] in a single transaction. */
-    fun batchSellWithCustomer(ids: List<String>, brewerId: String, customerName: String) = containerAction {
+    fun batchSellWithCustomer(ids: List<String>, brewerId: String, customerName: String) = containerAction(InventoryDialogAction.SELL) {
         val s = _uiState.value
         val existing = s.locations.firstOrNull {
             it.type == "customer" && it.name.equals(customerName, ignoreCase = true)
@@ -287,20 +290,18 @@ class InventoryViewModel @Inject constructor(
         val brewerName = s.brewers.find { it.id == brewerId }?.name
         val desc = "$prefix an $customerName verkauft${brewerName?.let { " ($it)" } ?: ""}"
         api.batchSell(BatchSellRequest(ids, brewerId, locationId, desc))
-        dismissSheet()
     }
 
-    fun batchSelfConsume(ids: List<String>, brewerId: String) = containerAction {
+    fun batchSelfConsume(ids: List<String>, brewerId: String) = containerAction(InventoryDialogAction.SELF_CONSUME) {
         val s = _uiState.value
         val group = s.selectedGroup
         val prefix = descriptionPrefix(group, ids.size)
         val brewerName = s.brewers.find { it.id == brewerId }?.name
         val desc = "$prefix – Eigenverbrauch${brewerName?.let { " von $it" } ?: ""}"
         api.batchSelfConsume(BatchSelfConsumeRequest(ids, brewerId, desc))
-        dismissSheet()
     }
 
-    fun batchReturn(ids: List<String>, brewerId: String, returnLocationId: String) = containerAction {
+    fun batchReturn(ids: List<String>, brewerId: String, returnLocationId: String) = containerAction(InventoryDialogAction.RETURN) {
         val s = _uiState.value
         val group = s.selectedGroup
         val prefix = descriptionPrefix(group, ids.size)
@@ -308,7 +309,6 @@ class InventoryViewModel @Inject constructor(
         val customerLocationName = group?.location?.name ?: "Kunde"
         val desc = "$prefix – Pfandrückgabe von $customerLocationName${locationName?.let { " → $it" } ?: ""}"
         api.batchContainerReturn(BatchContainerReturnRequest(ids, brewerId, returnLocationId, desc))
-        dismissSheet()
     }
 
     private fun descriptionPrefix(group: ContainerGroup?, count: Int): String {
@@ -316,5 +316,46 @@ class InventoryViewModel @Inject constructor(
         val beerName = group?.beer?.name
         val qty = if (count > 1) "$count× " else ""
         return if (beerName != null) "$qty$typeName ($beerName)" else "$qty$typeName"
+    }
+
+    private fun beginDialogAction(action: InventoryDialogAction): Boolean {
+        if (_uiState.value.submittingAction != null) return false
+        _uiState.update { it.copy(submittingAction = action, dialogError = null) }
+        sync.startSync()
+        return true
+    }
+
+    private fun completeDialogAction(close: InventoryUiState.() -> InventoryUiState = { this }) {
+        _uiState.update { it.close().copy(submittingAction = null, dialogError = null) }
+        sync.endSync()
+    }
+
+    private fun failDialogAction(message: String?) {
+        val failedAction = _uiState.value.submittingAction
+        _uiState.update {
+            it.copy(
+                submittingAction = null,
+                dialogError = if (failedAction != null && message != null) {
+                    InventoryDialogError(action = failedAction, message = message)
+                } else {
+                    null
+                },
+            )
+        }
+        sync.endSync(message)
+    }
+
+    private fun closeSheet() {
+        _uiState.update {
+            it.copy(
+                showActionSheet = false,
+                selectedContainer = null,
+                selectedGroup = null,
+            )
+        }
+    }
+
+    private fun closeAddDialog() {
+        _uiState.update { it.copy(showAddDialog = false) }
     }
 }
