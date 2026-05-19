@@ -6,18 +6,19 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -62,7 +63,6 @@ import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import com.haertibraeu.hopledger.ui.components.DialogActionButton
@@ -101,15 +101,39 @@ fun InventoryScreen(viewModel: InventoryViewModel = hiltViewModel()) {
                 }
             } else {
                 BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-                    LazyVerticalGrid(
-                        columns = inventoryGridCells(maxWidth),
+                    val colCount = when {
+                        maxWidth < 360.dp -> 1
+                        maxWidth < 600.dp -> 2
+                        else -> (maxWidth / 220.dp).toInt().coerceAtLeast(1)
+                    }
+                    val chunkedGroups = remember(uiState.groups, colCount) {
+                        uiState.groups.chunked(colCount)
+                    }
+
+                    LazyColumn(
                         contentPadding = PaddingValues(8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
                         modifier = Modifier.fillMaxSize(),
                     ) {
-                        items(uiState.groups, key = { "${it.containerTypeId}_${it.beerId}_${it.locationId}_${it.reservedFor}" }) { group ->
-                            ContainerGroupCard(group) { viewModel.selectGroup(group) }
+                        items(chunkedGroups) { rowItems ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Max),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            ) {
+                                for (group in rowItems) {
+                                    ContainerGroupCard(
+                                        group = group,
+                                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                                        onClick = { viewModel.selectGroup(group) },
+                                    )
+                                }
+                                // Fill remaining space in the row if it's not full
+                                if (rowItems.size < colCount) {
+                                    repeat(colCount - rowItems.size) {
+                                        Spacer(Modifier.weight(1f))
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -157,12 +181,6 @@ fun InventoryScreen(viewModel: InventoryViewModel = hiltViewModel()) {
             onDelete = { ids -> viewModel.batchDelete(ids) },
         )
     }
-}
-
-private fun inventoryGridCells(width: Dp): GridCells = when {
-    width < 360.dp -> GridCells.Fixed(1)
-    width < 600.dp -> GridCells.Fixed(2)
-    else -> GridCells.Adaptive(minSize = 220.dp)
 }
 
 private val breweryLocationTypes = setOf("brewer", "brewery")
@@ -350,7 +368,7 @@ private fun FilterDropdownChip(
 // ── Container group card ──────────────────────────────────────────────────────
 
 @Composable
-private fun ContainerGroupCard(group: ContainerGroup, onClick: () -> Unit) {
+private fun ContainerGroupCard(group: ContainerGroup, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val isReserved = group.reservedFor != null
     val isEmpty = group.beer == null
 
@@ -366,7 +384,7 @@ private fun ContainerGroupCard(group: ContainerGroup, onClick: () -> Unit) {
     }
 
     Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        modifier = modifier.fillMaxWidth().clickable(onClick = onClick),
         colors = CardDefaults.cardColors(containerColor = cardColor),
     ) {
         Column(modifier = Modifier.padding(10.dp)) {
