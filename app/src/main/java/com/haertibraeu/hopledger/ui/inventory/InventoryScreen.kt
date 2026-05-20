@@ -864,7 +864,7 @@ private fun SellDialog(
 
     AlertDialog(
         onDismissRequest = { if (!isSubmitting) onDismiss() },
-        title = { Text( "💰 Verkaufen" ) },
+        title = { Text("💰 Verkaufen") },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
