@@ -668,7 +668,7 @@ private fun ContainerActionSheet(
 
             if (!container.isEmpty) {
                 DialogActionButton(
-                    label = if (group.isByob) "🍼 An Eigentümer aushändigen" else "💰 Verkaufen (${container.containerType?.externalPrice ?: 0} + ${container.containerType?.depositFee ?: 0} CHF)",
+                    label = if (group.isByob) "💰 Verkaufen (${container.containerType?.externalPrice ?: 0}  CHF)" else "💰 Verkaufen (${container.containerType?.externalPrice ?: 0} + ${container.containerType?.depositFee ?: 0} CHF)",
                     onClick = { showSell = true },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !isSubmitting,
@@ -864,7 +864,7 @@ private fun SellDialog(
 
     AlertDialog(
         onDismissRequest = { if (!isSubmitting) onDismiss() },
-        title = { Text(if (isByob) "🍼 Aushändigen" else "💰 Verkaufen") },
+        title = { Text( "💰 Verkaufen" ) },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
@@ -878,7 +878,7 @@ private fun SellDialog(
                     }
                 }
                 HorizontalDivider()
-                Text(if (isByob) "Eigentümer" else "Kunde", style = MaterialTheme.typography.labelLarge)
+                Text(if (isByob) "BYOB Eigentümer" else "Kunde", style = MaterialTheme.typography.labelLarge)
                 if (isByob && reservedFor != null) {
                     Text(
                         "🍼 $reservedFor",
@@ -911,7 +911,7 @@ private fun SellDialog(
         },
         confirmButton = {
             DialogActionButton(
-                label = if (isByob) "Aushändigen" else "Verkaufen",
+                label = "Verkaufen",
                 onClick = { if (selectedBrewerId.isNotBlank() && customerName.isNotBlank()) onConfirm(selectedBrewerId, customerName) },
                 enabled = selectedBrewerId.isNotBlank() && customerName.isNotBlank(),
                 isLoading = isSubmitting,
