@@ -13,6 +13,7 @@ import com.haertibraeu.hopledger.data.model.Container
 import com.haertibraeu.hopledger.data.model.ContainerCreateRequest
 import com.haertibraeu.hopledger.data.model.ContainerReturnRequest
 import com.haertibraeu.hopledger.data.model.ContainerType
+import com.haertibraeu.hopledger.data.model.ContainerTypeRequest
 import com.haertibraeu.hopledger.data.model.FillRequest
 import com.haertibraeu.hopledger.data.model.Location
 import com.haertibraeu.hopledger.data.model.LocationRequest
@@ -29,13 +30,14 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-enum class StatusFilter { ALL, FULL, EMPTY, RESERVED }
+enum class StatusFilter { ALL, FULL, EMPTY, RESERVED, BYOB }
 
 data class ContainerGroup(
     val containerTypeId: String,
     val beerId: String?,
     val locationId: String,
     val reservedFor: String?,
+    val isByob: Boolean,
     val containerType: ContainerType?,
     val beer: Beer?,
     val location: Location?,
@@ -59,7 +61,10 @@ data class InventoryUiState(
     val selectedContainer: Container? = null,
     val selectedGroup: ContainerGroup? = null,
     val showActionSheet: Boolean = false,
-    val showAddDialog: Boolean = false,
+    val showSpeedDial: Boolean = false,
+    val showAddExistingDialog: Boolean = false,
+    val showAddNewGebindeDialog: Boolean = false,
+    val showAddByobDialog: Boolean = false,
     val submittingAction: InventoryDialogAction? = null,
     val dialogError: InventoryDialogError? = null,
 )
@@ -94,9 +99,11 @@ class InventoryViewModel @Inject constructor(
                     else -> null
                 }
                 val isReserved = if (s.statusFilter == StatusFilter.RESERVED) true else null
+                val isByobFilter = if (s.statusFilter == StatusFilter.BYOB) true else null
                 val containers = api.getContainers(
                     isEmpty = isEmpty,
                     isReserved = isReserved,
+                    isByob = isByobFilter,
                     locationId = s.filterLocationId,
                     beerId = s.filterBeerId,
                 )
@@ -138,9 +145,25 @@ class InventoryViewModel @Inject constructor(
         }
     }
 
-    // Group by type + beer + location + who reserved (each unique reservation is its own card)
+    // Group by type + beer + location + who reserved + isByob (each unique combination is its own card)
+    private data class ContainerGroupKey(
+        val containerTypeId: String,
+        val beerId: String?,
+        val locationId: String,
+        val reservedFor: String?,
+        val isByob: Boolean,
+    )
+
     private fun groupContainers(containers: List<Container>): List<ContainerGroup> = containers
-        .groupBy { Pair(Triple(it.containerTypeId, it.beerId, it.locationId), it.reservedFor) }
+        .groupBy {
+            ContainerGroupKey(
+                containerTypeId = it.containerTypeId,
+                beerId = it.beerId,
+                locationId = it.locationId,
+                reservedFor = it.reservedFor,
+                isByob = it.isByob,
+            )
+        }
         .map { (_, group) ->
             val s = group.first()
             ContainerGroup(
@@ -148,6 +171,7 @@ class InventoryViewModel @Inject constructor(
                 beerId = s.beerId,
                 locationId = s.locationId,
                 reservedFor = s.reservedFor,
+                isByob = s.isByob,
                 containerType = s.containerType,
                 beer = s.beer,
                 location = s.location,
@@ -188,13 +212,36 @@ class InventoryViewModel @Inject constructor(
         if (_uiState.value.submittingAction != null) return
         closeSheet()
     }
-    fun showAddDialog() {
+    fun toggleSpeedDial() {
         if (_uiState.value.submittingAction != null) return
-        _uiState.update { it.copy(showAddDialog = true) }
+        _uiState.update { it.copy(showSpeedDial = !it.showSpeedDial) }
     }
-    fun dismissAddDialog() {
+    fun dismissSpeedDial() {
+        _uiState.update { it.copy(showSpeedDial = false) }
+    }
+    fun showAddExistingDialog() {
         if (_uiState.value.submittingAction != null) return
-        closeAddDialog()
+        _uiState.update { it.copy(showSpeedDial = false, showAddExistingDialog = true) }
+    }
+    fun dismissAddExistingDialog() {
+        if (_uiState.value.submittingAction != null) return
+        _uiState.update { it.copy(showAddExistingDialog = false) }
+    }
+    fun showAddNewGebindeDialog() {
+        if (_uiState.value.submittingAction != null) return
+        _uiState.update { it.copy(showSpeedDial = false, showAddNewGebindeDialog = true) }
+    }
+    fun dismissAddNewGebindeDialog() {
+        if (_uiState.value.submittingAction != null) return
+        _uiState.update { it.copy(showAddNewGebindeDialog = false) }
+    }
+    fun showAddByobDialog() {
+        if (_uiState.value.submittingAction != null) return
+        _uiState.update { it.copy(showSpeedDial = false, showAddByobDialog = true) }
+    }
+    fun dismissAddByobDialog() {
+        if (_uiState.value.submittingAction != null) return
+        _uiState.update { it.copy(showAddByobDialog = false) }
     }
 
     fun addContainer(containerTypeId: String, locationId: String, beerId: String?, count: Int = 1) {
@@ -204,7 +251,76 @@ class InventoryViewModel @Inject constructor(
                 repeat(count.coerceIn(1, 50)) {
                     api.createContainer(ContainerCreateRequest(containerTypeId, locationId, beerId))
                 }
-                completeDialogAction { copy(showAddDialog = false) }
+                completeDialogAction { copy(showAddExistingDialog = false) }
+                refresh()
+            } catch (e: Exception) {
+                failDialogAction(e.message)
+            }
+        }
+    }
+
+    fun addNewGebinde(
+        name: String,
+        externalPrice: Double,
+        internalPrice: Double,
+        depositFee: Double,
+        locationId: String,
+        beerId: String?,
+        count: Int = 1,
+    ) {
+        if (!beginDialogAction(InventoryDialogAction.ADD_NEW_GEBINDE)) return
+        viewModelScope.launch {
+            try {
+                val newType = api.createContainerType(
+                    ContainerTypeRequest(name, externalPrice = externalPrice, internalPrice = internalPrice, depositFee = depositFee),
+                )
+                repeat(count.coerceIn(1, 50)) {
+                    api.createContainer(ContainerCreateRequest(newType.id, locationId, beerId))
+                }
+                completeDialogAction { copy(showAddNewGebindeDialog = false) }
+                refresh()
+            } catch (e: Exception) {
+                failDialogAction(e.message)
+            }
+        }
+    }
+
+    fun addByobGebinde(
+        containerTypeId: String?,
+        newTypeName: String?,
+        newTypeExternalPrice: Double,
+        newTypeInternalPrice: Double,
+        newTypeDepositFee: Double,
+        locationId: String,
+        ownerName: String,
+        count: Int = 1,
+    ) {
+        if (!beginDialogAction(InventoryDialogAction.ADD_BYOB)) return
+        viewModelScope.launch {
+            try {
+                val typeId = if (containerTypeId != null) {
+                    containerTypeId
+                } else {
+                    api.createContainerType(
+                        ContainerTypeRequest(
+                            name = newTypeName ?: "BYOB",
+                            externalPrice = newTypeExternalPrice,
+                            internalPrice = newTypeInternalPrice,
+                            depositFee = newTypeDepositFee,
+                        ),
+                    ).id
+                }
+                repeat(count.coerceIn(1, 50)) {
+                    api.createContainer(
+                        ContainerCreateRequest(
+                            containerTypeId = typeId,
+                            locationId = locationId,
+                            isByob = true,
+                            reservedFor = ownerName.trim(),
+                        ),
+                    )
+                }
+                completeDialogAction { copy(showAddByobDialog = false) }
                 refresh()
             } catch (e: Exception) {
                 failDialogAction(e.message)
@@ -288,7 +404,8 @@ class InventoryViewModel @Inject constructor(
         val group = s.selectedGroup
         val prefix = descriptionPrefix(group, ids.size)
         val brewerName = s.brewers.find { it.id == brewerId }?.name
-        val desc = "$prefix an $customerName verkauft${brewerName?.let { " ($it)" } ?: ""}"
+        val byobSuffix = if (group?.isByob == true) " (BYOB – kein Pfand)" else ""
+        val desc = "$prefix an $customerName verkauft${brewerName?.let { " ($it)" } ?: ""}$byobSuffix"
         api.batchSell(BatchSellRequest(ids, brewerId, locationId, desc))
     }
 
@@ -353,9 +470,5 @@ class InventoryViewModel @Inject constructor(
                 selectedGroup = null,
             )
         }
-    }
-
-    private fun closeAddDialog() {
-        _uiState.update { it.copy(showAddDialog = false) }
     }
 }
