@@ -668,7 +668,7 @@ private fun ContainerActionSheet(
 
             if (!container.isEmpty) {
                 DialogActionButton(
-                    label = if (group.isByob) "💰 Verkaufen (${container.containerType?.externalPrice ?: 0}  CHF)" else "💰 Verkaufen (${container.containerType?.externalPrice ?: 0} + ${container.containerType?.depositFee ?: 0} CHF)",
+                    label = if (group.isByob) "💰 Verkaufen (${container.containerType?.externalPrice ?: 0} CHF)" else "💰 Verkaufen (${container.containerType?.externalPrice ?: 0} + ${container.containerType?.depositFee ?: 0} CHF)",
                     onClick = { showSell = true },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !isSubmitting,
