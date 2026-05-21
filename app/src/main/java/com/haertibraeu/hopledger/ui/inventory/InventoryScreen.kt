@@ -1,5 +1,6 @@
 package com.haertibraeu.hopledger.ui.inventory
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -46,6 +47,9 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.SmallFloatingActionButton
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -139,15 +143,37 @@ fun InventoryScreen(viewModel: InventoryViewModel = hiltViewModel()) {
                 }
             }
         }
-        FloatingActionButton(
-            onClick = viewModel::showAddDialog,
+        // Scrim to dismiss speed dial when clicking outside
+        if (uiState.showSpeedDial) {
+            Box(modifier = Modifier.fillMaxSize().clickable { viewModel.dismissSpeedDial() })
+        }
+
+        // Speed-dial FAB
+        Column(
             modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
+            horizontalAlignment = Alignment.End,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Icon(Icons.Default.Add, "Gebinde hinzufügen")
+            AnimatedVisibility(visible = uiState.showSpeedDial) {
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    SpeedDialItem(emoji = "🍼", label = "BYOB Gebinde") { viewModel.showAddByobDialog() }
+                    SpeedDialItem(emoji = "🆕", label = "Neuer Gebindetyp") { viewModel.showAddNewGebindeDialog() }
+                    SpeedDialItem(emoji = "🫙", label = "Gebinde hinzufügen") { viewModel.showAddExistingDialog() }
+                }
+            }
+            FloatingActionButton(onClick = viewModel::toggleSpeedDial) {
+                Icon(
+                    if (uiState.showSpeedDial) Icons.Default.Close else Icons.Default.Add,
+                    contentDescription = "Menü",
+                )
+            }
         }
     }
 
-    if (uiState.showAddDialog) {
+    if (uiState.showAddExistingDialog) {
         AddContainerDialog(
             containerTypes = uiState.containerTypes,
             locations = uiState.locations,
@@ -157,7 +183,37 @@ fun InventoryScreen(viewModel: InventoryViewModel = hiltViewModel()) {
                 ?.takeIf { it.action == InventoryDialogAction.ADD_CONTAINER }
                 ?.message,
             onConfirm = { ctId, locId, beerId, count -> viewModel.addContainer(ctId, locId, beerId, count) },
-            onDismiss = viewModel::dismissAddDialog,
+            onDismiss = viewModel::dismissAddExistingDialog,
+        )
+    }
+
+    if (uiState.showAddNewGebindeDialog) {
+        AddNewGebindeDialog(
+            locations = uiState.locations,
+            beers = uiState.beers,
+            submittingAction = uiState.submittingAction,
+            errorMessage = uiState.dialogError
+                ?.takeIf { it.action == InventoryDialogAction.ADD_NEW_GEBINDE }
+                ?.message,
+            onConfirm = { name, extP, intP, dep, locId, beerId, count ->
+                viewModel.addNewGebinde(name, extP, intP, dep, locId, beerId, count)
+            },
+            onDismiss = viewModel::dismissAddNewGebindeDialog,
+        )
+    }
+
+    if (uiState.showAddByobDialog) {
+        AddByobDialog(
+            containerTypes = uiState.containerTypes,
+            locations = uiState.locations,
+            submittingAction = uiState.submittingAction,
+            errorMessage = uiState.dialogError
+                ?.takeIf { it.action == InventoryDialogAction.ADD_BYOB }
+                ?.message,
+            onConfirm = { ctId, newName, extP, intP, dep, locId, owner, count ->
+                viewModel.addByobGebinde(ctId, newName, extP, intP, dep, locId, owner, count)
+            },
+            onDismiss = viewModel::dismissAddByobDialog,
         )
     }
 
@@ -218,12 +274,14 @@ private fun FilterRow(
         StatusFilter.FULL -> "🍺"
         StatusFilter.EMPTY -> "🫙"
         StatusFilter.RESERVED -> "📋"
+        StatusFilter.BYOB -> "🍼"
     }
     val statusLabel = when (statusFilter) {
         StatusFilter.ALL -> "Status"
         StatusFilter.FULL -> "Gefüllt"
         StatusFilter.EMPTY -> "Leer"
         StatusFilter.RESERVED -> "Reserviert"
+        StatusFilter.BYOB -> "BYOB"
     }
     val locationName = locations.find { it.id == filterLocationId }?.name
     val beerName = beers.find { it.id == filterBeerId }?.name
@@ -247,6 +305,7 @@ private fun FilterRow(
                 StatusFilter.FULL to ("🍺" to "Gefüllt"),
                 StatusFilter.EMPTY to ("🫙" to "Leer"),
                 StatusFilter.RESERVED to ("📋" to "Reserviert"),
+                StatusFilter.BYOB to ("🍼" to "BYOB"),
             ).forEach { (f, pair) ->
                 val (emoji, name) = pair
                 DropdownMenuItem(
@@ -369,17 +428,14 @@ private fun FilterDropdownChip(
 
 @Composable
 private fun ContainerGroupCard(group: ContainerGroup, modifier: Modifier = Modifier, onClick: () -> Unit) {
-    val isReserved = group.reservedFor != null
+    val isByob = group.isByob
+    val isReserved = group.reservedFor != null && !isByob
     val isEmpty = group.beer == null
 
     val cardColor = when {
-        // reserved: warm tint
+        isByob -> MaterialTheme.colorScheme.secondaryContainer
         isReserved -> MaterialTheme.colorScheme.secondaryContainer
-
-        // empty: muted neutral
         isEmpty -> MaterialTheme.colorScheme.surfaceVariant
-
-        // full: primary tint
         else -> MaterialTheme.colorScheme.primaryContainer
     }
 
@@ -407,7 +463,11 @@ private fun ContainerGroupCard(group: ContainerGroup, modifier: Modifier = Modif
             Spacer(Modifier.height(4.dp))
             Text(if (group.beer == null) "🫙 Leer" else "🍺 ${group.beer.name}", style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
             Text("📍 ${group.location?.name ?: "?"}", style = MaterialTheme.typography.bodySmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            if (isReserved) Text("📋 ${group.reservedFor}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            if (isByob) {
+                Text("🍼 ${group.reservedFor}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            } else if (isReserved) {
+                Text("📋 ${group.reservedFor}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.secondary, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
         }
     }
 }
@@ -584,47 +644,53 @@ private fun ContainerActionSheet(
                 )
             }
 
-            if (!container.isEmpty && !container.isReserved) {
-                DialogActionButton(
-                    label = "📋 Reservieren",
-                    onClick = { showReserve = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !isSubmitting,
-                )
-            }
-            if (container.isReserved) {
-                DialogActionButton(
-                    label = "📋 Reservierung aufheben (${container.reservedFor})",
-                    onClick = { onUnreserve(ids) },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !isSubmitting,
-                    isLoading = submittingAction == InventoryDialogAction.UNRESERVE,
-                )
+            if (!group.isByob) {
+                if (!container.isEmpty && !container.isReserved) {
+                    DialogActionButton(
+                        label = "📋 Reservieren",
+                        onClick = { showReserve = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !isSubmitting,
+                    )
+                }
+                if (container.isReserved) {
+                    DialogActionButton(
+                        label = "📋 Reservierung aufheben (${container.reservedFor})",
+                        onClick = { onUnreserve(ids) },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !isSubmitting,
+                        isLoading = submittingAction == InventoryDialogAction.UNRESERVE,
+                    )
+                }
             }
 
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
             if (!container.isEmpty) {
                 DialogActionButton(
-                    label = "💰 Verkaufen (${container.containerType?.externalPrice ?: 0} + ${container.containerType?.depositFee ?: 0} CHF)",
+                    label = if (group.isByob) "💰 Verkaufen (${container.containerType?.externalPrice ?: 0} CHF)" else "💰 Verkaufen (${container.containerType?.externalPrice ?: 0} + ${container.containerType?.depositFee ?: 0} CHF)",
                     onClick = { showSell = true },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !isSubmitting,
                 )
+                if (!group.isByob) {
+                    DialogActionButton(
+                        label = "🍻 Eigenverbrauch (${container.containerType?.internalPrice ?: 0} CHF)",
+                        onClick = { showConsume = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !isSubmitting,
+                    )
+                }
+            }
+
+            if (!group.isByob) {
                 DialogActionButton(
-                    label = "🍻 Eigenverbrauch (${container.containerType?.internalPrice ?: 0} CHF)",
-                    onClick = { showConsume = true },
+                    label = "↩️ Rückgabe (${container.containerType?.depositFee ?: 0} CHF Pfand)",
+                    onClick = { showReturn = true },
                     modifier = Modifier.fillMaxWidth(),
                     enabled = !isSubmitting,
                 )
             }
-
-            DialogActionButton(
-                label = "↩️ Rückgabe (${container.containerType?.depositFee ?: 0} CHF Pfand)",
-                onClick = { showReturn = true },
-                modifier = Modifier.fillMaxWidth(),
-                enabled = !isSubmitting,
-            )
 
             // ── Danger zone ───────────────────────────────────────────────
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
@@ -702,6 +768,7 @@ private fun ContainerActionSheet(
     if (showSell) {
         SellDialog(
             reservedFor = container.reservedFor,
+            isByob = group.isByob,
             brewers = brewers,
             isSubmitting = isSubmitting,
             errorMessage = errorMessageFor(InventoryDialogAction.SELL),
@@ -785,6 +852,7 @@ private fun ContainerActionSheet(
 @Composable
 private fun SellDialog(
     reservedFor: String?,
+    isByob: Boolean = false,
     brewers: List<com.haertibraeu.hopledger.data.model.Brewer>,
     isSubmitting: Boolean,
     errorMessage: String?,
@@ -810,8 +878,19 @@ private fun SellDialog(
                     }
                 }
                 HorizontalDivider()
-                Text("Kunde", style = MaterialTheme.typography.labelLarge)
-                if (reservedFor != null) {
+                Text(if (isByob) "BYOB Eigentümer" else "Kunde", style = MaterialTheme.typography.labelLarge)
+                if (isByob && reservedFor != null) {
+                    Text(
+                        "🍼 $reservedFor",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                    )
+                    Text(
+                        "Kein Pfand",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                } else if (reservedFor != null) {
                     Text(
                         "📋 Reserviert für: $reservedFor",
                         style = MaterialTheme.typography.bodyMedium,
@@ -962,6 +1041,192 @@ private fun TwoPickerDialog(
                 onClick = { if (s1.isNotBlank() && s2.isNotBlank()) onConfirm(s1, s2) },
                 enabled = s1.isNotBlank() && s2.isNotBlank(),
                 isLoading = isLoading,
+            )
+        },
+        dismissButton = { DialogActionButton(label = "Abbrechen", onClick = onDismiss, enabled = !isSubmitting) },
+    )
+}
+
+// ── Speed dial item ───────────────────────────────────────────────────────────
+
+@Composable
+private fun SpeedDialItem(emoji: String, label: String, onClick: () -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Surface(
+            shape = MaterialTheme.shapes.small,
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            tonalElevation = 4.dp,
+        ) { Text(label, modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp), style = MaterialTheme.typography.labelMedium) }
+        SmallFloatingActionButton(onClick = onClick) { Text(emoji, style = MaterialTheme.typography.titleMedium) }
+    }
+}
+
+// ── Add new Gebindetyp + container dialog ─────────────────────────────────────
+
+@Composable
+private fun AddNewGebindeDialog(
+    locations: List<com.haertibraeu.hopledger.data.model.Location>,
+    beers: List<com.haertibraeu.hopledger.data.model.Beer>,
+    submittingAction: InventoryDialogAction?,
+    errorMessage: String?,
+    onConfirm: (name: String, externalPrice: Double, internalPrice: Double, depositFee: Double, locationId: String, beerId: String?, count: Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val isSubmitting = submittingAction != null
+    val breweryLocations = locations.filter { it.type == "brewer" || it.type == "brewery" }
+    val defaultLocation = breweryLocations.firstOrNull { it.type == "brewery" } ?: breweryLocations.firstOrNull()
+
+    var name by remember { mutableStateOf("") }
+    var externalPriceText by remember { mutableStateOf("") }
+    var internalPriceText by remember { mutableStateOf("") }
+    var depositFeeText by remember { mutableStateOf("") }
+    var selectedLocationId by remember { mutableStateOf(defaultLocation?.id ?: "") }
+    var selectedBeerId by remember { mutableStateOf("") }
+    var countText by remember { mutableStateOf("1") }
+
+    val selectedLocationName = breweryLocations.find { it.id == selectedLocationId }?.name ?: "Auswählen…"
+    val selectedBeerName = if (selectedBeerId.isBlank()) "Leer" else beers.find { it.id == selectedBeerId }?.name ?: "Auswählen…"
+
+    val canConfirm = name.isNotBlank() &&
+        externalPriceText.toDoubleOrNull() != null &&
+        internalPriceText.toDoubleOrNull() != null &&
+        depositFeeText.toDoubleOrNull() != null &&
+        selectedLocationId.isNotBlank()
+
+    AlertDialog(
+        onDismissRequest = { if (!isSubmitting) onDismiss() },
+        title = { Text("🆕 Neuer Gebindetyp") },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Gebindetyp", style = MaterialTheme.typography.labelLarge)
+                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Name") }, singleLine = true, enabled = !isSubmitting, modifier = Modifier.fillMaxWidth())
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(value = externalPriceText, onValueChange = { externalPriceText = it }, label = { Text("Preis extern") }, singleLine = true, enabled = !isSubmitting, modifier = Modifier.weight(1f))
+                    OutlinedTextField(value = internalPriceText, onValueChange = { internalPriceText = it }, label = { Text("Preis intern") }, singleLine = true, enabled = !isSubmitting, modifier = Modifier.weight(1f))
+                }
+                OutlinedTextField(value = depositFeeText, onValueChange = { depositFeeText = it }, label = { Text("Pfand") }, singleLine = true, enabled = !isSubmitting, modifier = Modifier.fillMaxWidth())
+                HorizontalDivider()
+                Text("Erstes Gebinde", style = MaterialTheme.typography.labelLarge)
+                Text("Standort", style = MaterialTheme.typography.labelMedium)
+                SpinnerField(selectedLocationName, breweryLocations.map { it.name to it.id }, enabled = !isSubmitting) { selectedLocationId = it }
+                Text("Bier (optional)", style = MaterialTheme.typography.labelMedium)
+                SpinnerField(selectedBeerName, listOf("Leer" to "") + beers.map { it.name to it.id }, enabled = !isSubmitting) { selectedBeerId = it }
+                Text("Anzahl", style = MaterialTheme.typography.labelMedium)
+                OutlinedTextField(value = countText, onValueChange = { if (it.all(Char::isDigit) && it.length <= 2) countText = it }, label = { Text("Stück (max. 50)") }, singleLine = true, enabled = !isSubmitting, modifier = Modifier.fillMaxWidth())
+                errorMessage?.let { DialogErrorMessage(it) }
+            }
+        },
+        confirmButton = {
+            DialogActionButton(
+                label = "Erstellen",
+                onClick = {
+                    onConfirm(
+                        name.trim(),
+                        externalPriceText.toDoubleOrNull() ?: 0.0,
+                        internalPriceText.toDoubleOrNull() ?: 0.0,
+                        depositFeeText.toDoubleOrNull() ?: 0.0,
+                        selectedLocationId,
+                        selectedBeerId.ifBlank { null },
+                        countText.toIntOrNull() ?: 1,
+                    )
+                },
+                enabled = canConfirm,
+                isLoading = submittingAction == InventoryDialogAction.ADD_NEW_GEBINDE,
+            )
+        },
+        dismissButton = { DialogActionButton(label = "Abbrechen", onClick = onDismiss, enabled = !isSubmitting) },
+    )
+}
+
+// ── Add BYOB container dialog ─────────────────────────────────────────────────
+
+@Composable
+private fun AddByobDialog(
+    containerTypes: List<com.haertibraeu.hopledger.data.model.ContainerType>,
+    locations: List<com.haertibraeu.hopledger.data.model.Location>,
+    submittingAction: InventoryDialogAction?,
+    errorMessage: String?,
+    onConfirm: (containerTypeId: String?, newTypeName: String?, externalPrice: Double, internalPrice: Double, depositFee: Double, locationId: String, ownerName: String, count: Int) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val isSubmitting = submittingAction != null
+    val breweryLocations = locations.filter { it.type == "brewer" || it.type == "brewery" }
+    val defaultLocation = breweryLocations.firstOrNull { it.type == "brewery" } ?: breweryLocations.firstOrNull()
+
+    var defineNewType by remember { mutableStateOf(containerTypes.isEmpty()) }
+    var selectedTypeId by remember { mutableStateOf(containerTypes.firstOrNull()?.id ?: "") }
+    var newTypeName by remember { mutableStateOf("") }
+    var externalPriceText by remember { mutableStateOf("") }
+    var internalPriceText by remember { mutableStateOf("") }
+    var depositFeeText by remember { mutableStateOf("0") }
+    var selectedLocationId by remember { mutableStateOf(defaultLocation?.id ?: "") }
+    var ownerName by remember { mutableStateOf("") }
+    var countText by remember { mutableStateOf("1") }
+
+    val selectedTypeName = containerTypes.find { it.id == selectedTypeId }?.name ?: "Auswählen…"
+    val selectedLocationName = breweryLocations.find { it.id == selectedLocationId }?.name ?: "Auswählen…"
+
+    val canConfirm = ownerName.isNotBlank() && selectedLocationId.isNotBlank() &&
+        if (defineNewType) {
+            newTypeName.isNotBlank() &&
+                externalPriceText.toDoubleOrNull() != null &&
+                internalPriceText.toDoubleOrNull() != null &&
+                depositFeeText.toDoubleOrNull() != null
+        } else {
+            selectedTypeId.isNotBlank()
+        }
+
+    AlertDialog(
+        onDismissRequest = { if (!isSubmitting) onDismiss() },
+        title = { Text("🍼 BYOB Gebinde") },
+        text = {
+            Column(modifier = Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text("Eigentümer", style = MaterialTheme.typography.labelLarge)
+                OutlinedTextField(value = ownerName, onValueChange = { ownerName = it }, label = { Text("Name") }, singleLine = true, enabled = !isSubmitting, modifier = Modifier.fillMaxWidth())
+                HorizontalDivider()
+                Text("Gebindetyp", style = MaterialTheme.typography.labelLarge)
+                if (containerTypes.isNotEmpty()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Switch(checked = defineNewType, onCheckedChange = { defineNewType = it }, enabled = !isSubmitting)
+                        Spacer(Modifier.size(8.dp))
+                        Text("Neuen Typ definieren", style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                if (defineNewType) {
+                    OutlinedTextField(value = newTypeName, onValueChange = { newTypeName = it }, label = { Text("Name") }, singleLine = true, enabled = !isSubmitting, modifier = Modifier.fillMaxWidth())
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedTextField(value = externalPriceText, onValueChange = { externalPriceText = it }, label = { Text("Preis extern") }, singleLine = true, enabled = !isSubmitting, modifier = Modifier.weight(1f))
+                        OutlinedTextField(value = internalPriceText, onValueChange = { internalPriceText = it }, label = { Text("Preis intern") }, singleLine = true, enabled = !isSubmitting, modifier = Modifier.weight(1f))
+                    }
+                    OutlinedTextField(value = depositFeeText, onValueChange = { depositFeeText = it }, label = { Text("Pfand (Standard: 0)") }, singleLine = true, enabled = !isSubmitting, modifier = Modifier.fillMaxWidth())
+                } else {
+                    SpinnerField(selectedTypeName, containerTypes.map { it.name to it.id }, enabled = !isSubmitting) { selectedTypeId = it }
+                }
+                HorizontalDivider()
+                Text("Standort", style = MaterialTheme.typography.labelMedium)
+                SpinnerField(selectedLocationName, breweryLocations.map { it.name to it.id }, enabled = !isSubmitting) { selectedLocationId = it }
+                Text("Anzahl", style = MaterialTheme.typography.labelMedium)
+                OutlinedTextField(value = countText, onValueChange = { if (it.all(Char::isDigit) && it.length <= 2) countText = it }, label = { Text("Stück (max. 50)") }, singleLine = true, enabled = !isSubmitting, modifier = Modifier.fillMaxWidth())
+                errorMessage?.let { DialogErrorMessage(it) }
+            }
+        },
+        confirmButton = {
+            DialogActionButton(
+                label = "Hinzufügen",
+                onClick = {
+                    onConfirm(
+                        if (defineNewType) null else selectedTypeId,
+                        if (defineNewType) newTypeName.trim() else null,
+                        externalPriceText.toDoubleOrNull() ?: 0.0,
+                        internalPriceText.toDoubleOrNull() ?: 0.0,
+                        depositFeeText.toDoubleOrNull() ?: 0.0,
+                        selectedLocationId,
+                        ownerName.trim(),
+                        countText.toIntOrNull() ?: 1,
+                    )
+                },
+                enabled = canConfirm,
+                isLoading = submittingAction == InventoryDialogAction.ADD_BYOB,
             )
         },
         dismissButton = { DialogActionButton(label = "Abbrechen", onClick = onDismiss, enabled = !isSubmitting) },

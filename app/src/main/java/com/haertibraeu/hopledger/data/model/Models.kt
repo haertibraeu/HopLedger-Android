@@ -40,6 +40,7 @@ data class Container(
     @SerialName("isEmpty") val isEmpty: Boolean = true,
     @SerialName("isReserved") val isReserved: Boolean = false,
     @SerialName("reservedFor") val reservedFor: String? = null,
+    @SerialName("isByob") val isByob: Boolean = false,
 )
 
 @Serializable
@@ -107,7 +108,13 @@ data class ContainerTypeRequest(
 )
 
 @Serializable
-data class ContainerCreateRequest(val containerTypeId: String, val locationId: String, val beerId: String? = null)
+data class ContainerCreateRequest(
+    val containerTypeId: String,
+    val locationId: String,
+    val beerId: String? = null,
+    val isByob: Boolean = false,
+    val reservedFor: String? = null,
+)
 
 @Serializable
 data class MoveRequest(val locationId: String)

@@ -106,6 +106,7 @@ interface HopLedgerApi {
         @Query("containerTypeId") containerTypeId: String? = null,
         @Query("isEmpty") isEmpty: Boolean? = null,
         @Query("isReserved") isReserved: Boolean? = null,
+        @Query("isByob") isByob: Boolean? = null,
     ): List<Container>
 
     @POST("api/containers")

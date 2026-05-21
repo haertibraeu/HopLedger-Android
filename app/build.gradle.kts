@@ -75,5 +75,5 @@ dependencies {
 }
 
 tasks.named("preBuild") {
-    dependsOn("spotlessApply")
+    dependsOn(":spotlessApply")
 }
